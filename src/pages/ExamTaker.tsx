@@ -44,6 +44,8 @@ export default function ExamTaker() {
   // Timer State
   const [timeLeft, setTimeLeft] = useState<number>(0); // seconds
   const timerRef = useRef<any>(null);
+  const startExamCalled = useRef(false);
+  const lastExamIdRef = useRef<string | null>(null);
 
   // Fisher-Yates Shuffle
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -59,6 +61,14 @@ export default function ExamTaker() {
   useEffect(() => {
     const initExam = async () => {
       if (!examId || !user) return;
+
+      // Ngăn chặn race condition / gọi trùng lặp do React Strict Mode chạy useEffect 2 lần
+      if (lastExamIdRef.current !== examId) {
+        startExamCalled.current = false;
+        lastExamIdRef.current = examId;
+      }
+      if (startExamCalled.current) return;
+      startExamCalled.current = true;
 
       try {
         setLoading(true);

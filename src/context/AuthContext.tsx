@@ -6,6 +6,8 @@ interface UserProfile {
   role: 'superuser' | 'teacher' | 'student';
   full_name: string;
   email: string;
+  credits: number;
+  is_premium: boolean;
 }
 
 interface AuthContextType {
@@ -14,6 +16,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +47,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const fetchProfile = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, full_name, email, credits, is_premium')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data) {
+        setProfile(data as UserProfile);
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+    }
+  };
+
   // Fetch profile when user changes
   useEffect(() => {
     if (!user) {
@@ -51,34 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    let isMounted = true;
-
-    const fetchProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('role, full_name, email')
-          .eq('id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching profile:', error);
-          return;
-        }
-
-        if (isMounted && data) {
-          setProfile(data as UserProfile);
-        }
-      } catch (err) {
-        console.error('Failed to fetch profile:', err);
-      }
-    };
-
     fetchProfile();
-
-    return () => {
-      isMounted = false;
-    };
   }, [user]);
 
   const signOut = async () => {
@@ -93,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile: fetchProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -14,6 +14,7 @@ interface Exam {
   duration: number;
   questionsCount: number;
   createdAt: string;
+  credit_cost: number;
 }
 
 interface Attempt {
@@ -33,7 +34,7 @@ interface Attempt {
 }
 
 export default function StudentDashboard() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   const [exams, setExams] = useState<Exam[]>([]);
@@ -43,7 +44,7 @@ export default function StudentDashboard() {
   
   const [activeTab, setActiveTab] = useState<'exams' | 'history'>('exams');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Attempt Review Modal
   const [selectedAttempt, setSelectedAttempt] = useState<Attempt | null>(null);
   const [reviewQuestions, setReviewQuestions] = useState<any[]>([]);
@@ -103,6 +104,11 @@ export default function StudentDashboard() {
       setLoading(true);
       setError(null);
 
+      // Refresh student profile to update credits/VIP status
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+
       // 1. Fetch published exams
       const { data: examsData, error: examsErr } = await supabase
         .from('exams')
@@ -112,6 +118,7 @@ export default function StudentDashboard() {
           duration,
           status,
           created_at,
+          credit_cost,
           exam_questions (
             question_id
           )
@@ -151,6 +158,7 @@ export default function StudentDashboard() {
         duration: ex.duration,
         questionsCount: ex.exam_questions?.length || 0,
         createdAt: new Date(ex.created_at).toLocaleDateString('vi-VN'),
+        credit_cost: ex.credit_cost !== undefined && ex.credit_cost !== null ? ex.credit_cost : 5,
       }));
 
       setExams(mappedExams);
@@ -230,9 +238,42 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleStartExam = async (examId: string) => {
-    if (!window.confirm('Bạn đã sẵn sàng làm đề thi này? Đồng hồ đếm ngược sẽ bắt đầu chạy ngay lập tức!')) return;
-    navigate(`/exam/${examId}`);
+  const handleStartExam = async (exam: Exam) => {
+    // 1. Check if there is an in_progress attempt for this exam
+    const hasInProgress = attempts.some(a => a.exam_id === exam.id && a.status === 'in_progress');
+    
+    if (hasInProgress) {
+      // If already in progress, just resume without checks or warnings
+      navigate(`/exam/${exam.id}`);
+      return;
+    }
+
+    // 2. Check VIP / Premium status
+    if (profile?.is_premium) {
+      if (window.confirm(`Bạn đang sở hữu tài khoản VIP Vô Hạn xu. Bắt đầu làm đề thi này chứ?`)) {
+        navigate(`/exam/${exam.id}`);
+      }
+      return;
+    }
+
+    // 3. Normal user checks credits
+    const cost = exam.credit_cost;
+    const currentCredits = profile?.credits || 0;
+
+    if (cost > 0) {
+      if (currentCredits < cost) {
+        alert(`Bạn không đủ xu để làm đề thi này!\n\n- Chi phí đề thi: ${cost} Xu\n- Số dư xu hiện tại: ${currentCredits} Xu\n\nHãy liên hệ Giáo viên để gia hạn thêm xu hoặc nâng cấp tài khoản VIP Vô Hạn!`);
+        return;
+      }
+
+      if (window.confirm(`Bắt đầu làm bài thi này sẽ tiêu phí ${cost} Xu từ tài khoản của bạn.\n\n- Chi phí đề thi: ${cost} Xu\n- Số dư hiện tại: ${currentCredits} Xu\n- Số dư còn lại: ${currentCredits - cost} Xu\n\nBạn có chắc chắn muốn bắt đầu làm bài không?`)) {
+        navigate(`/exam/${exam.id}`);
+      }
+    } else {
+      if (window.confirm('Bạn đã sẵn sàng làm đề thi miễn phí này? Đồng hồ đếm ngược sẽ bắt đầu chạy ngay lập tức!')) {
+        navigate(`/exam/${exam.id}`);
+      }
+    }
   };
 
   // Math Statistics
@@ -277,6 +318,21 @@ export default function StudentDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+            {profile && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-extrabold text-xs shadow-2xs hover:scale-105 transition-all">
+                {profile.is_premium ? (
+                  <>
+                    <span className="text-sm">👑</span>
+                    <span className="bg-gradient-to-r from-amber-600 to-yellow-500 bg-clip-text text-transparent font-black">VIP VÔ HẠN</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">🪙</span>
+                    <span>{profile.credits} Xu</span>
+                  </>
+                )}
+              </div>
+            )}
             <div className="text-right hidden sm:block">
               <p className="text-xs font-bold text-slate-800 leading-none">{profile?.full_name || user?.email}</p>
               <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-semibold">Học sinh</p>
@@ -413,13 +469,23 @@ export default function StudentDashboard() {
               {filteredExams.map((ex) => (
                 <div key={ex.id} className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-2xs hover:shadow-md hover:border-indigo-200 transition-all flex flex-col justify-between group">
                   <div className="space-y-4">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
                         {ex.id}
                       </span>
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
                         Sẵn sàng
                       </span>
+                      {ex.credit_cost > 0 ? (
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-250 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                          <span>🪙</span>
+                          <span>{ex.credit_cost} Xu</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <span>Miễn phí</span>
+                        </span>
+                      )}
                     </div>
 
                     <h3 className="text-sm font-bold text-slate-800 my-0 tracking-tight leading-snug">
@@ -444,7 +510,7 @@ export default function StudentDashboard() {
                   </div>
 
                   <button
-                    onClick={() => handleStartExam(ex.id)}
+                    onClick={() => handleStartExam(ex)}
                     className="mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md"
                   >
                     <span>Làm bài ngay</span>
