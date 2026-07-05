@@ -690,7 +690,14 @@ export default function StudentDashboard() {
                       </div>
 
                       {/* Content */}
-                      <p className="text-sm font-semibold text-slate-800 my-0 leading-relaxed whitespace-pre-line">{q.content}</p>
+                      {/<[a-z][\s\S]*>/i.test(q.content) ? (
+                        <div 
+                          className="text-sm font-semibold text-slate-800 my-0 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                          dangerouslySetInnerHTML={{ __html: q.content }} 
+                        />
+                      ) : (
+                        <p className="text-sm font-semibold text-slate-800 my-0 leading-relaxed whitespace-pre-line">{q.content}</p>
+                      )}
 
                       {/* Options and selected answers depending on type */}
                       {q.type === 'trac_nghiem' && (
@@ -708,7 +715,13 @@ export default function StudentDashboard() {
                                 <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px]">
                                   {opt.key}
                                 </span>
-                                <span className="flex-1">{opt.text}</span>
+                                <span className="flex-1">
+                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                                  ) : (
+                                    opt.text
+                                  )}
+                                </span>
                                 {isSelected && !isCorrectAnswer && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                                 {isCorrectAnswer && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
                               </div>
@@ -732,7 +745,13 @@ export default function StudentDashboard() {
                                   <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px]">
                                     {opt.key}
                                   </span>
-                                  <span className="text-slate-700">{opt.text}</span>
+                                  <span className="text-slate-700">
+                                    {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                                      <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                                    ) : (
+                                      opt.text
+                                    )}
+                                  </span>
                                 </div>
                                 <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-auto">
                                   <span className="text-slate-400">Bạn chọn: <strong className={studentChoice === 'Đ' ? 'text-indigo-650' : 'text-amber-600'}>{studentChoice || 'Không trả lời'}</strong></span>
@@ -774,7 +793,12 @@ export default function StudentDashboard() {
                               <div className="space-y-1">
                                 {(q.metadata?.left_options || []).map((l: any) => (
                                   <p key={l.key} className="leading-snug">
-                                    <span className="font-bold text-slate-700 mr-1">{l.key}.</span> {l.text}
+                                    <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
+                                    {/<[a-z][\s\S]*>/i.test(l.text) ? (
+                                      <span dangerouslySetInnerHTML={{ __html: l.text }} />
+                                    ) : (
+                                      l.text
+                                    )}
                                   </p>
                                 ))}
                               </div>
@@ -784,7 +808,12 @@ export default function StudentDashboard() {
                               <div className="space-y-1">
                                 {(q.metadata?.right_options || []).map((r: any) => (
                                   <p key={r.key} className="leading-snug">
-                                    <span className="font-bold text-slate-700 mr-1">{r.key}.</span> {r.text}
+                                    <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
+                                    {/<[a-z][\s\S]*>/i.test(r.text) ? (
+                                      <span dangerouslySetInnerHTML={{ __html: r.text }} />
+                                    ) : (
+                                      r.text
+                                    )}
                                   </p>
                                 ))}
                               </div>

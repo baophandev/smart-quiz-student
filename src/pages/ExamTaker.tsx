@@ -677,9 +677,16 @@ export default function ExamTaker() {
               </div>
 
               {/* Question Text */}
-              <p className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-line my-0">
-                {currentQuestion.content}
-              </p>
+              {/<[a-z][\s\S]*>/i.test(currentQuestion.content) ? (
+                <div 
+                  className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                  dangerouslySetInnerHTML={{ __html: currentQuestion.content }} 
+                />
+              ) : (
+                <p className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-line my-0">
+                  {currentQuestion.content}
+                </p>
+              )}
             </div>
 
             {/* Answer Options Selector */}
@@ -708,7 +715,13 @@ export default function ExamTaker() {
                         }`}>
                           {opt.key}
                         </span>
-                        <span className="flex-1">{opt.text}</span>
+                        <span className="flex-1">
+                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                          ) : (
+                            opt.text
+                          )}
+                        </span>
                       </button>
                     );
                   })}
@@ -726,7 +739,13 @@ export default function ExamTaker() {
                           <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px] text-slate-500">
                             {opt.key}
                           </span>
-                          <span className="text-slate-700 text-xs sm:text-sm">{opt.text}</span>
+                          <span className="text-slate-700 text-xs sm:text-sm">
+                            {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                              <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                            ) : (
+                              opt.text
+                            )}
+                          </span>
                         </div>
                         <div className="flex gap-2 shrink-0">
                           <button
@@ -779,7 +798,12 @@ export default function ExamTaker() {
                       <div className="space-y-1 text-xs">
                         {(currentQuestion.metadata?.left_options || []).map((l: any) => (
                           <p key={l.key} className="leading-snug">
-                            <span className="font-bold text-slate-700 mr-1">{l.key}.</span> {l.text}
+                            <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
+                            {/<[a-z][\s\S]*>/i.test(l.text) ? (
+                              <span dangerouslySetInnerHTML={{ __html: l.text }} />
+                            ) : (
+                              l.text
+                            )}
                           </p>
                         ))}
                       </div>
@@ -789,7 +813,12 @@ export default function ExamTaker() {
                       <div className="space-y-1 text-xs">
                         {(currentQuestion.metadata?.right_options || []).map((r: any) => (
                           <p key={r.key} className="leading-snug">
-                            <span className="font-bold text-slate-700 mr-1">{r.key}.</span> {r.text}
+                            <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
+                            {/<[a-z][\s\S]*>/i.test(r.text) ? (
+                              <span dangerouslySetInnerHTML={{ __html: r.text }} />
+                            ) : (
+                              r.text
+                            )}
                           </p>
                         ))}
                       </div>
