@@ -162,3 +162,13 @@ CREATE POLICY "Allow staff to insert credit transactions" ON credit_transactions
             AND profiles.role IN ('teacher', 'superuser')
         )
     );
+
+-- 9. Đảm bảo toàn vẹn dữ liệu: Chuyển ràng buộc khóa ngoại của exam_attempts từ ON DELETE CASCADE sang ON DELETE RESTRICT
+-- Điều này ngăn cản việc xóa đề thi khi đã có học sinh làm bài (tránh làm mất lịch sử thi & tiêu tốn xu của học sinh).
+-- Thay vào đó, giáo viên có thể chuyển trạng thái đề thi sang "Bản nháp" (Draft) để ẩn đi.
+ALTER TABLE exam_attempts DROP CONSTRAINT IF EXISTS exam_attempts_exam_id_fkey;
+ALTER TABLE exam_attempts 
+    ADD CONSTRAINT exam_attempts_exam_id_fkey 
+    FOREIGN KEY (exam_id) 
+    REFERENCES exams(id) 
+    ON DELETE RESTRICT;
