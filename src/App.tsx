@@ -19,9 +19,11 @@ function ProtectedRoute() {
   if (loading) {
     return (
       <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-indigo-500/20 mb-4 animate-bounce">
-          S
-        </div>
+        <img 
+          src="/image-removebg-preview.png" 
+          alt="Logo" 
+          className="w-12 h-12 object-contain mb-4 animate-bounce"
+        />
         <div className="flex items-center gap-2 text-emerald-450 text-xs font-semibold tracking-wider uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           Đang tải dữ liệu...
@@ -47,9 +49,11 @@ function PublicRoute() {
   if (loading) {
     return (
       <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-indigo-500/20 mb-4 animate-bounce">
-          S
-        </div>
+        <img 
+          src="/image-removebg-preview.png" 
+          alt="Logo" 
+          className="w-12 h-12 object-contain mb-4 animate-bounce"
+        />
         <div className="flex items-center gap-2 text-emerald-450 text-xs font-semibold tracking-wider uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           Đang tải dữ liệu...

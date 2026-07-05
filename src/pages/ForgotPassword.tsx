@@ -66,9 +66,11 @@ export default function ForgotPassword() {
         
         {/* Logo / Header */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-indigo-500/30 mb-4 transform hover:scale-105 transition-transform duration-200">
-            S
-          </div>
+          <img 
+            src="/image-removebg-preview.png" 
+            alt="Logo" 
+            className="w-14 h-14 object-contain mb-4 transform hover:scale-105 transition-transform duration-200"
+          />
           <h2 className="text-2xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-200 bg-clip-text text-transparent">
             QUÊN MẬT KHẨU
           </h2>

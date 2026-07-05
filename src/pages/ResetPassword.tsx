@@ -105,9 +105,11 @@ export default function ResetPassword() {
   if (checkingSession) {
     return (
       <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white font-sans">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-indigo-500/20 mb-4 animate-bounce">
-          S
-        </div>
+        <img 
+          src="/image-removebg-preview.png" 
+          alt="Logo" 
+          className="w-12 h-12 object-contain mb-4 animate-bounce"
+        />
         <div className="flex items-center gap-2 text-emerald-450 text-xs font-semibold tracking-wider uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           Đang xác thực liên kết...
@@ -131,9 +133,11 @@ export default function ResetPassword() {
         
         {/* Logo / Header */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-indigo-500/30 mb-4 transform hover:scale-105 transition-transform duration-200">
-            S
-          </div>
+          <img 
+            src="/image-removebg-preview.png" 
+            alt="Logo" 
+            className="w-14 h-14 object-contain mb-4 transform hover:scale-105 transition-transform duration-200"
+          />
           <h2 className="text-2xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-emerald-200 bg-clip-text text-transparent">
             ĐẶT LẠI MẬT KHẨU
           </h2>

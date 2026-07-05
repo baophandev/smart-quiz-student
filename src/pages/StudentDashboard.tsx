@@ -265,9 +265,11 @@ export default function StudentDashboard() {
       <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-200/80 z-30 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-extrabold text-base shadow-sm">
-              S
-            </div>
+            <img 
+              src="/image-removebg-preview.png" 
+              alt="Logo" 
+              className="w-9 h-9 object-contain"
+            />
             <div>
               <span className="text-sm font-bold text-slate-800 tracking-tight block">SMART QUIZ</span>
               <span className="text-[10px] text-emerald-600 font-bold tracking-wider uppercase block -mt-1">Cổng Học Sinh</span>
