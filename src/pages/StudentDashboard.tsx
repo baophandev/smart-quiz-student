@@ -15,6 +15,7 @@ interface Exam {
   questionsCount: number;
   createdAt: string;
   credit_cost: number;
+  course_name?: string | null;
 }
 
 interface Attempt {
@@ -109,8 +110,17 @@ export default function StudentDashboard() {
         await refreshProfile();
       }
 
+      // Fetch courses this student is enrolled in
+      const { data: enrollments, error: enrollErr } = await supabase
+        .from('course_enrollments')
+        .select('course_id')
+        .eq('student_id', user.id);
+
+      if (enrollErr) throw enrollErr;
+      const enrolledCourseIds = (enrollments || []).map((e: any) => e.course_id);
+
       // 1. Fetch published exams
-      const { data: examsData, error: examsErr } = await supabase
+      let examsQuery = supabase
         .from('exams')
         .select(`
           id,
@@ -119,12 +129,24 @@ export default function StudentDashboard() {
           status,
           created_at,
           credit_cost,
+          course_id,
+          course:courses(name),
           exam_questions (
             question_id
           )
         `)
         .eq('status', 'published')
         .order('created_at', { ascending: false });
+
+      if (enrolledCourseIds.length > 0) {
+        examsQuery = examsQuery.in('course_id', enrolledCourseIds);
+      } else {
+        setExams([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: examsData, error: examsErr } = await examsQuery;
 
       if (examsErr) throw examsErr;
 
@@ -159,6 +181,7 @@ export default function StudentDashboard() {
         questionsCount: ex.exam_questions?.length || 0,
         createdAt: new Date(ex.created_at).toLocaleDateString('vi-VN'),
         credit_cost: ex.credit_cost !== undefined && ex.credit_cost !== null ? ex.credit_cost : 5,
+        course_name: ex.course?.name || null
       }));
 
       setExams(mappedExams);
@@ -476,6 +499,11 @@ export default function StudentDashboard() {
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
                         Sẵn sàng
                       </span>
+                      {ex.course_name && (
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-md">
+                          📚 {ex.course_name}
+                        </span>
+                      )}
                       {ex.credit_cost > 0 ? (
                         <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-250 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
                           <span>🪙</span>
@@ -670,7 +698,15 @@ export default function StudentDashboard() {
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-extrabold text-slate-800">Câu {q.order}</span>
                           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                            {q.type === 'trac_nghiem' ? 'Trắc nghiệm' : q.type === 'dung_sai' ? 'Đúng/Sai' : q.type === 'tra_loi_ngan' ? 'Trả lời ngắn' : 'Nối câu'}
+                            {q.type === 'trac_nghiem' 
+                              ? 'Trắc nghiệm' 
+                              : q.type === 'dung_sai' 
+                              ? 'Đúng/Sai' 
+                              : q.type === 'tra_loi_ngan' 
+                              ? 'Trả lời ngắn' 
+                              : q.type === 'noi_cau' 
+                              ? 'Nối câu' 
+                              : 'Ngữ liệu / Đọc hiểu'}
                           </span>
                         </div>
 
@@ -848,6 +884,72 @@ export default function StudentDashboard() {
                               ))}
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {q.type === 'ngu_lieu' && (
+                        <div className="space-y-4 pl-4 border-l-2 border-indigo-200 mt-2 text-xs">
+                          {(q.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
+                            const studentAns = q.selected?.[sub.id] || '';
+                            const correctAns = sub.correct_answer || '';
+                            const isSubCorrect = studentAns === correctAns;
+
+                            return (
+                              <div key={sub.id || subIdx} className={`space-y-3 p-4 border rounded-2xl bg-white ${
+                                isSubCorrect ? 'border-emerald-100 hover:border-emerald-250 bg-emerald-50/5' : 'border-rose-150 hover:border-rose-200 bg-rose-50/5'
+                              }`}>
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                  <span className="font-bold text-slate-800">
+                                    {sub.title || `Câu hỏi ${subIdx + 1}`}
+                                  </span>
+                                  <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                    isSubCorrect ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-rose-700 bg-rose-50 border border-rose-100'
+                                  }`}>
+                                    {isSubCorrect ? 'Đúng' : 'Sai'}
+                                  </span>
+                                </div>
+
+                                {/<[a-z][\s\S]*>/i.test(sub.content) ? (
+                                  <div 
+                                    className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                                    dangerouslySetInnerHTML={{ __html: sub.content }}
+                                  />
+                                ) : (
+                                  <p className="font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
+                                    {sub.content}
+                                  </p>
+                                )}
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                  {(sub.options || []).map((opt: any) => {
+                                    const isOptSelected = studentAns === opt.key;
+                                    const isOptCorrect = opt.key === correctAns;
+
+                                    let optionStyle = 'border-slate-200 bg-white text-slate-600';
+                                    if (isOptSelected) optionStyle = 'border-rose-300 bg-rose-50/20 text-rose-700';
+                                    if (isOptCorrect) optionStyle = 'border-emerald-300 bg-emerald-50/30 text-emerald-700 font-bold';
+
+                                    return (
+                                      <div key={opt.key} className={`flex items-start gap-2 p-2.5 border rounded-xl leading-relaxed ${optionStyle}`}>
+                                        <span className="font-extrabold shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-[9px]">
+                                          {opt.key}
+                                        </span>
+                                        <span className="flex-1">
+                                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                                          ) : (
+                                            opt.text
+                                          )}
+                                        </span>
+                                        {isOptSelected && !isOptCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
+                                        {isOptCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

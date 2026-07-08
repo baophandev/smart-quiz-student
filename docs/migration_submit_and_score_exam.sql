@@ -109,12 +109,49 @@ BEGIN
                 IF v_student_answer = v_correct_answer THEN
                     v_is_correct := TRUE;
                 END IF;
+            ELSIF v_q_type = 'ngu_lieu' THEN
+                -- Ngữ liệu / Đọc hiểu (So sánh từng câu hỏi con)
+                -- v_student_answer là jsonb dạng: {"sub_10": "A", "sub_11": "B", ...}
+                DECLARE
+                    v_sub_elem JSONB;
+                    v_sub_id TEXT;
+                    v_sub_correct TEXT;
+                    v_sub_student TEXT;
+                    v_sub_count INT4 := 0;
+                    v_sub_correct_count INT4 := 0;
+                BEGIN
+                    v_sub_count := jsonb_array_length(v_question_record.metadata->'sub_questions');
+                    IF v_sub_count > 0 THEN
+                        FOR v_sub_elem IN SELECT * FROM jsonb_array_elements(v_question_record.metadata->'sub_questions') LOOP
+                            v_sub_id := v_sub_elem->>'id';
+                            v_sub_correct := v_sub_elem->>'correct_answer';
+                            v_sub_student := v_student_answer->>v_sub_id;
+                            
+                            IF v_sub_student IS NOT NULL AND trim(upper(v_sub_student)) = trim(upper(v_sub_correct)) THEN
+                                v_sub_correct_count := v_sub_correct_count + 1;
+                            END IF;
+                        END LOOP;
+                        
+                        -- Tính điểm tỷ lệ dựa trên số câu con đúng
+                        v_q_score := (v_sub_correct_count::numeric / v_sub_count::numeric) * v_q_score;
+                        IF v_sub_correct_count = v_sub_count THEN
+                            v_is_correct := TRUE;
+                        END IF;
+                    END IF;
+                END;
             END IF;
         END IF;
 
-        IF v_is_correct THEN
-            v_correct_count := v_correct_count + 1;
+        IF v_q_type = 'ngu_lieu' THEN
             v_total_score := v_total_score + v_q_score;
+            IF v_is_correct THEN
+                v_correct_count := v_correct_count + 1;
+            END IF;
+        ELSE
+            IF v_is_correct THEN
+                v_correct_count := v_correct_count + 1;
+                v_total_score := v_total_score + v_q_score;
+            END IF;
         END IF;
 
         -- Lưu lại chi tiết bài làm của câu hỏi này
@@ -123,7 +160,7 @@ BEGIN
             'selected_answer', v_student_answer,
             'correct_answer', v_correct_answer,
             'is_correct', v_is_correct,
-            'score', CASE WHEN v_is_correct THEN v_q_score ELSE 0 END
+            'score', CASE WHEN v_q_type = 'ngu_lieu' THEN v_q_score WHEN v_is_correct THEN v_q_score ELSE 0 END
         );
         v_graded_answers := v_graded_answers || v_graded_item;
     END LOOP;

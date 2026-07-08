@@ -11,7 +11,7 @@ interface Question {
   id: string;
   order: number;
   content: string;
-  type: 'trac_nghiem' | 'dung_sai' | 'tra_loi_ngan' | 'noi_cau';
+  type: 'trac_nghiem' | 'dung_sai' | 'tra_loi_ngan' | 'noi_cau' | 'ngu_lieu';
   metadata: any;
   shuffledOptions?: any[]; // for trac_nghiem
 }
@@ -326,6 +326,18 @@ export default function ExamTaker() {
     };
   }, []);
 
+  const isQuestionAnswered = (qId: string, qType: string) => {
+    const ans = answers[qId];
+    if (ans === undefined || ans === null) return false;
+    if (qType === 'ngu_lieu' || qType === 'dung_sai' || qType === 'noi_cau') {
+      return Object.keys(ans).length > 0;
+    }
+    if (qType === 'tra_loi_ngan') {
+      return typeof ans === 'string' && ans.trim().length > 0;
+    }
+    return true;
+  };
+
   // Formatter for countdown
   const formatTime = (totalSeconds: number) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -454,7 +466,7 @@ export default function ExamTaker() {
   };
 
   const handleManualSubmit = () => {
-    const unansweredCount = questions.length - Object.keys(answers).filter(k => answers[k] !== undefined).length;
+    const unansweredCount = questions.length - questions.filter(q => isQuestionAnswered(q.id, q.type)).length;
     let msg = 'Bạn có chắc chắn muốn nộp bài thi này không?';
     if (unansweredCount > 0) {
       msg = `Bạn vẫn còn ${unansweredCount} câu chưa trả lời. Bạn có chắc chắn muốn nộp bài sớm không?`;
@@ -672,7 +684,15 @@ export default function ExamTaker() {
                 </span>
                 
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                  {currentQuestion.type === 'trac_nghiem' ? 'Trắc nghiệm' : currentQuestion.type === 'dung_sai' ? 'Đúng/Sai' : currentQuestion.type === 'tra_loi_ngan' ? 'Trả lời ngắn' : 'Nối câu'}
+                  {currentQuestion.type === 'trac_nghiem' 
+                    ? 'Trắc nghiệm' 
+                    : currentQuestion.type === 'dung_sai' 
+                    ? 'Đúng/Sai' 
+                    : currentQuestion.type === 'tra_loi_ngan' 
+                    ? 'Trả lời ngắn' 
+                    : currentQuestion.type === 'noi_cau' 
+                    ? 'Nối câu' 
+                    : 'Ngữ liệu / Đọc hiểu'}
                 </span>
               </div>
 
@@ -850,6 +870,77 @@ export default function ExamTaker() {
                   </div>
                 </div>
               )}
+
+              {/* 5. Reading Comprehension (Ngữ liệu) */}
+              {currentQuestion.type === 'ngu_lieu' && (
+                <div className="space-y-6 pl-4 border-l-2 border-indigo-200">
+                  {(currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
+                    const studentAns = answers[currentQuestion.id]?.[sub.id] || '';
+                    return (
+                      <div key={sub.id || subIdx} className="space-y-3 bg-white p-4 border border-slate-200 rounded-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="text-xs font-bold text-slate-800">
+                            {sub.title || `Câu hỏi ${subIdx + 1}`}
+                          </span>
+                        </div>
+                        {/<[a-z][\s\S]*>/i.test(sub.content) ? (
+                          <div 
+                            className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                            dangerouslySetInnerHTML={{ __html: sub.content }}
+                          />
+                        ) : (
+                          <p className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
+                            {sub.content}
+                          </p>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {(sub.options || []).map((opt: any) => {
+                            const isSelected = studentAns === opt.key;
+                            return (
+                              <button
+                                key={opt.key}
+                                onClick={() => {
+                                  setAnswers(prev => {
+                                    const prevAns = prev[currentQuestion.id] || {};
+                                    return {
+                                      ...prev,
+                                      [currentQuestion.id]: {
+                                        ...prevAns,
+                                        [sub.id]: opt.key
+                                      }
+                                    };
+                                  });
+                                }}
+                                className={`flex items-start text-left gap-2 px-3 py-2 border rounded-xl text-xs transition-all duration-200 cursor-pointer ${
+                                  isSelected
+                                    ? 'border-indigo-500 bg-indigo-50/20 text-indigo-900 font-semibold ring-1 ring-indigo-500'
+                                    : 'border-slate-200 bg-white hover:border-slate-305 text-slate-600 hover:bg-slate-50/50'
+                                }`}
+                              >
+                                <span className={`font-extrabold shrink-0 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+                                  isSelected 
+                                    ? 'bg-indigo-600 border-indigo-650 text-white' 
+                                    : 'bg-slate-100 border-slate-200 text-slate-400'
+                                }`}>
+                                  {opt.key}
+                                </span>
+                                <span className="flex-1">
+                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
+                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
+                                  ) : (
+                                    opt.text
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -885,7 +976,7 @@ export default function ExamTaker() {
               <div className="grid grid-cols-5 gap-2.5">
                 {questions.map((q, idx) => {
                   const isCurrent = idx === currentIdx;
-                  const isAnswered = answers[q.id] !== undefined;
+                  const isAnswered = isQuestionAnswered(q.id, q.type);
 
                   let cellStyle = 'border-slate-200 hover:bg-slate-50 text-slate-600 hover:border-slate-350';
                   if (isAnswered) cellStyle = 'bg-indigo-600 border-indigo-650 text-white hover:bg-indigo-700';
@@ -909,12 +1000,12 @@ export default function ExamTaker() {
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5 text-xs text-slate-550">
               <div className="flex justify-between items-center">
                 <span>Số câu đã làm:</span>
-                <strong className="text-slate-800">{Object.keys(answers).length} / {questions.length}</strong>
+                <strong className="text-slate-800">{questions.filter(q => isQuestionAnswered(q.id, q.type)).length} / {questions.length}</strong>
               </div>
               <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                 <div 
                   className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${(Object.keys(answers).length / questions.length) * 100}%` }}
+                  style={{ width: `${(questions.filter(q => isQuestionAnswered(q.id, q.type)).length / questions.length) * 100}%` }}
                 />
               </div>
             </div>
