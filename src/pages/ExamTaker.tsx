@@ -326,6 +326,24 @@ export default function ExamTaker() {
     };
   }, []);
 
+  // Trigger KaTeX rendering whenever questions or current index changes
+  useEffect(() => {
+    if (typeof (window as any).renderMathInElement === 'function') {
+      const timer = setTimeout(() => {
+        (window as any).renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [questions, currentIdx]);
+
   const isQuestionAnswered = (qId: string, qType: string) => {
     const ans = answers[qId];
     if (ans === undefined || ans === null) return false;

@@ -214,6 +214,24 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, [user]);
 
+  // Trigger KaTeX rendering whenever reviewQuestions list changes
+  useEffect(() => {
+    if (typeof (window as any).renderMathInElement === 'function') {
+      const timer = setTimeout(() => {
+        (window as any).renderMathInElement(document.body, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [reviewQuestions]);
+
   const handleOpenReview = async (attempt: Attempt) => {
     setSelectedAttempt(attempt);
     if (!attempt.answers || attempt.answers.length === 0) return;
