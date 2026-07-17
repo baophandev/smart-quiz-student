@@ -92,6 +92,7 @@ interface Attempt {
   total_questions_count: number | null;
   status: 'in_progress' | 'completed';
   answers: any[] | null;
+  questions_list?: any[] | null;
   exam: {
     title: string;
     duration: number;
@@ -103,6 +104,8 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   const [exams, setExams] = useState<Exam[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,42 +180,52 @@ export default function StudentDashboard() {
       // Fetch courses this student is enrolled in
       const { data: enrollments, error: enrollErr } = await supabase
         .from('course_enrollments')
-        .select('course_id')
+        .select(`
+          course_id,
+          course:courses(id, name, description)
+        `)
         .eq('student_id', user.id);
 
       if (enrollErr) throw enrollErr;
-      const enrolledCourseIds = (enrollments || []).map((e: any) => e.course_id);
 
-      // 1. Fetch published exams
-      let examsQuery = supabase
-        .from('exams')
-        .select(`
-          id,
-          title,
-          duration,
-          status,
-          created_at,
-          credit_cost,
-          course_id,
-          course:courses(name),
-          exam_questions (
-            question_id
-          )
-        `)
-        .eq('status', 'published')
-        .order('created_at', { ascending: false });
+      const enrolledCourses = (enrollments || [])
+        .map((e: any) => e.course)
+        .filter(Boolean);
 
-      if (enrolledCourseIds.length > 0) {
-        examsQuery = examsQuery.in('course_id', enrolledCourseIds);
-      } else {
-        setExams([]);
-        setLoading(false);
-        return;
+      setCourses(enrolledCourses);
+
+      // Determine which course is active
+      let activeCourseId = selectedCourseId;
+      if (!activeCourseId && enrolledCourses.length > 0) {
+        activeCourseId = enrolledCourses[0].id;
+        setSelectedCourseId(enrolledCourses[0].id);
       }
 
-      const { data: examsData, error: examsErr } = await examsQuery;
+      // 1. Fetch published exams for the active course
+      let examsData: any[] = [];
+      if (activeCourseId) {
+        const { data, error: examsErr } = await supabase
+          .from('exams')
+          .select(`
+            id,
+            title,
+            duration,
+            status,
+            created_at,
+            credit_cost,
+            course_id,
+            course:courses(name),
+            exam_questions (
+              question_id
+            )
+          `)
+          .eq('status', 'published')
+          .eq('course_id', activeCourseId)
+          .order('created_at', { ascending: false });
 
-      if (examsErr) throw examsErr;
+        if (examsErr) throw examsErr;
+        examsData = data || [];
+      }
 
       // 2. Fetch attempts of this student
       const { data: attemptsData, error: attemptsErr } = await supabase
@@ -227,6 +240,7 @@ export default function StudentDashboard() {
           total_questions_count,
           status,
           answers,
+          questions_list,
           exam:exams (
             title,
             duration
@@ -260,6 +274,7 @@ export default function StudentDashboard() {
         total_questions_count: att.total_questions_count,
         status: att.status,
         answers: att.answers,
+        questions_list: att.questions_list,
         exam: Array.isArray(att.exam) 
           ? att.exam[0] || null 
           : att.exam || null
@@ -276,7 +291,7 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [user]);
+  }, [user, selectedCourseId]);
 
 
 
@@ -286,37 +301,41 @@ export default function StudentDashboard() {
     
     setReviewLoading(true);
     try {
-      // Fetch details of questions in this exam to show contents during review
-      const { data, error: qErr } = await supabase
-        .from('exam_questions')
-        .select(`
-          question_order,
-          question:questions (
-            id,
-            content,
-            question_type,
-            metadata
-          )
-        `)
-        .eq('exam_id', attempt.exam_id)
-        .order('question_order', { ascending: true });
+      const qList = (attempt.questions_list || []) as { question_id: string; score: number }[];
+      const qIds = qList.map((item: any) => item.question_id);
+
+      if (qIds.length === 0) {
+        throw new Error('Không tìm thấy danh sách câu hỏi của lượt làm bài thi này.');
+      }
+
+      // Fetch details of questions in this attempt
+      const { data: qData, error: qErr } = await supabase
+        .from('questions')
+        .select('id, content, question_type, metadata')
+        .in('id', qIds);
 
       if (qErr) throw qErr;
 
-      // Merge student answers with question contents
-      const merged = (data || []).map((item: any) => {
-        const studentAnsObj = attempt.answers?.find((a: any) => a.question_id === item.question?.id);
-        return {
-          order: item.question_order,
-          id: item.question?.id,
-          content: item.question?.content,
-          type: item.question?.question_type,
-          metadata: item.question?.metadata,
-          selected: studentAnsObj ? studentAnsObj.selected_answer : null,
-          isCorrect: studentAnsObj ? studentAnsObj.is_correct : false,
-          score: studentAnsObj ? studentAnsObj.score : 0,
-        };
-      });
+      const questionsMap = new Map((qData || []).map((q: any) => [q.id, q]));
+
+      // Merge student answers with question contents and maintain original questions_list order
+      const merged = qList
+        .map((item: any, idx: number) => {
+          const q = questionsMap.get(item.question_id);
+          if (!q) return null;
+          const studentAnsObj = attempt.answers?.find((a: any) => a.question_id === q.id);
+          return {
+            order: idx + 1,
+            id: q.id,
+            content: q.content,
+            type: q.question_type,
+            metadata: q.metadata,
+            selected: studentAnsObj ? studentAnsObj.selected_answer : null,
+            isCorrect: studentAnsObj ? studentAnsObj.is_correct : false,
+            score: studentAnsObj ? studentAnsObj.score : 0,
+          };
+        })
+        .filter(Boolean);
 
       setReviewQuestions(merged);
     } catch (err) {
@@ -493,6 +512,35 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        {/* Course Selection */}
+        {courses.length > 0 && (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-2xs space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <span>📚</span> Khóa học của bạn
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {courses.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCourseId(c.id)}
+                  className={`px-5 py-3 rounded-2xl text-xs font-extrabold transition-all duration-200 text-left border cursor-pointer ${
+                    selectedCourseId === c.id
+                      ? 'bg-indigo-650 text-white border-transparent shadow-md shadow-indigo-100 scale-[1.02]'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="font-extrabold text-sm">{c.name}</div>
+                  {c.description && (
+                    <div className={`text-[10px] mt-0.5 font-normal ${selectedCourseId === c.id ? 'text-indigo-200' : 'text-slate-450'}`}>
+                      {c.description}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tab & Search Panel */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="flex bg-slate-100 rounded-xl p-1 w-full sm:w-auto">
@@ -614,13 +662,23 @@ export default function StudentDashboard() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
-              <BookOpen className="w-12 h-12 text-slate-350 mb-3" />
-              <h3 className="text-base font-bold text-slate-800">Chưa có đề thi nào khả dụng</h3>
-              <p className="text-sm text-slate-500 max-w-xs mt-1">
-                Hiện tại giáo viên chưa xuất bản đề thi nào. Hãy quay lại sau nhé!
-              </p>
-            </div>
+            courses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
+                <AlertCircle className="w-12 h-12 text-amber-500 mb-3" />
+                <h3 className="text-base font-bold text-slate-800">Bạn chưa được ghi danh vào khóa học nào</h3>
+                <p className="text-sm text-slate-500 max-w-sm mt-1">
+                  Hiện tại tài khoản của bạn chưa liên kết với khóa học nào. Vui lòng liên hệ Giáo viên để được thêm vào lớp học tương ứng.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
+                <BookOpen className="w-12 h-12 text-slate-350 mb-3" />
+                <h3 className="text-base font-bold text-slate-800">Chưa có đề thi nào khả dụng</h3>
+                <p className="text-sm text-slate-500 max-w-xs mt-1">
+                  Hiện tại giáo viên chưa xuất bản đề thi nào cho khóa học này. Hãy quay lại sau nhé!
+                </p>
+              </div>
+            )
           )
         ) : (
           filteredHistory.length > 0 ? (

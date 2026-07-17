@@ -141,7 +141,7 @@ export default function ExamTaker() {
         setError(null);
 
         // A. Start Exam Attempt on DB
-        const { error: attemptErr } = await supabase.rpc(
+        const { data: attemptId, error: attemptErr } = await supabase.rpc(
           'start_exam_attempt',
           {
             p_exam_id: examId,
@@ -162,27 +162,77 @@ export default function ExamTaker() {
         setExamTitle(examData.title);
         setDuration(examData.duration || 45);
 
-        // C. Fetch Questions
-        const { data: qData, error: qErr } = await supabase
-          .from('exam_questions')
-          .select(`
-            question_order,
-            question:questions (
-              id,
-              content,
-              question_type,
-              difficulty_level,
-              metadata
-            )
-          `)
-          .eq('exam_id', examId)
-          .order('question_order', { ascending: true });
+        // C. Fetch Attempt Details to get questions_list
+        const { data: attemptData, error: attemptFetchErr } = await supabase
+          .from('exam_attempts')
+          .select('questions_list')
+          .eq('id', attemptId)
+          .single();
 
-        if (qErr) throw qErr;
+        if (attemptFetchErr) throw attemptFetchErr;
+        const qList = (attemptData?.questions_list || []) as { question_id: string; score: number }[];
+        const qIds = qList.map((item: any) => item.question_id);
 
-        const validQuestions = (qData || [])
-          .filter((item: any) => item.question)
-          .map((item: any) => {
+        let questionsData: any[] = [];
+        if (qIds.length > 0) {
+          // D. Fetch Questions dynamically based on questions_list
+          const { data: qData, error: qErr } = await supabase
+            .from('questions')
+            .select('id, content, question_type, difficulty_level, metadata')
+            .in('id', qIds);
+          if (qErr) throw qErr;
+          const questionsMap = new Map((qData || []).map((q: any) => [q.id, q]));
+          const validQuestions = qList
+            .map((item: any, idx: number) => {
+              const q = questionsMap.get(item.question_id);
+              if (!q) return null;
+              const questionObj: Question = {
+                id: q.id,
+                order: idx + 1,
+                content: q.content,
+                type: q.question_type,
+                metadata: q.metadata || {}
+              };
+              // Shuffle options as before
+              if (q.question_type === 'trac_nghiem' && q.metadata?.options) {
+                questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+              }
+              if (q.question_type === 'dung_sai' && q.metadata?.options) {
+                questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+              }
+              if (q.question_type === 'noi_cau' && q.metadata?.right_options) {
+                questionObj.shuffledRightOptions = shuffleArray(q.metadata.right_options);
+              }
+              if (q.question_type === 'ngu_lieu' && q.metadata?.sub_questions) {
+                questionObj.shuffledSubQuestions = q.metadata.sub_questions.map((sub: any) => {
+                  if (sub.options) {
+                    return { ...sub, shuffledOptions: shuffleArray(sub.options) };
+                  }
+                  return sub;
+                });
+              }
+              return questionObj;
+            })
+            .filter(Boolean) as Question[];
+          questionsData = validQuestions;
+        } else {
+          // Fallback: legacy static exam_questions (when matrix is empty or not stored)
+          const { data: qData, error: qErr } = await supabase
+            .from('exam_questions')
+            .select(`
+              question_order,
+              question:questions (
+                id,
+                content,
+                question_type,
+                difficulty_level,
+                metadata
+              )
+            `)
+            .eq('exam_id', examId)
+            .order('question_order', { ascending: true });
+          if (qErr) throw qErr;
+          questionsData = (qData || []).map((item: any) => {
             const q = item.question;
             const questionObj: Question = {
               id: q.id,
@@ -191,38 +241,28 @@ export default function ExamTaker() {
               type: q.question_type,
               metadata: q.metadata || {}
             };
-
-            // 1. Shuffle options if type is trac_nghiem
             if (q.question_type === 'trac_nghiem' && q.metadata?.options) {
               questionObj.shuffledOptions = shuffleArray(q.metadata.options);
             }
-
-            // 2. Shuffle options (statements) if type is dung_sai
             if (q.question_type === 'dung_sai' && q.metadata?.options) {
               questionObj.shuffledOptions = shuffleArray(q.metadata.options);
             }
-
-            // 3. Shuffle right_options if type is noi_cau
             if (q.question_type === 'noi_cau' && q.metadata?.right_options) {
               questionObj.shuffledRightOptions = shuffleArray(q.metadata.right_options);
             }
-
-            // 4. Shuffle options of each sub-question if type is ngu_lieu
             if (q.question_type === 'ngu_lieu' && q.metadata?.sub_questions) {
               questionObj.shuffledSubQuestions = q.metadata.sub_questions.map((sub: any) => {
                 if (sub.options) {
-                  return {
-                    ...sub,
-                    shuffledOptions: shuffleArray(sub.options)
-                  };
+                  return { ...sub, shuffledOptions: shuffleArray(sub.options) };
                 }
                 return sub;
               });
             }
             return questionObj;
           });
+        }
 
-        setQuestions(validQuestions);
+        setQuestions(questionsData as Question[]);
 
         // D. Setup Countdown Timer (LocalStorage check for Anti-F5)
         const storageTimeKey = `exam_time_left_${examId}_${user.id}`;
