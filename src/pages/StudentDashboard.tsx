@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,70 @@ import {
   XCircle, ChevronRight, Calendar, Search, 
   HelpCircle, Eye, AlertCircle, Sparkles, Trophy, X, Loader2, Key
 } from 'lucide-react';
+
+interface MathContentProps {
+  content: string;
+  className?: string;
+  isInline?: boolean;
+}
+
+const autoWrapLaTeX = (text: string): string => {
+  if (!text) return '';
+  const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+(?:\s*\[[^\]]*\])?(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?:\s*[_^](?:[a-zA-Z0-9]+|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}))*)/g;
+  return text.replace(regex, (match) => {
+    if (
+      match.startsWith('$$') || 
+      match.startsWith('$') || 
+      match.startsWith('\\[') || 
+      match.startsWith('\\(')
+    ) {
+      return match;
+    }
+    return `$${match}$`;
+  });
+};
+
+const MathContent: React.FC<MathContentProps> = React.memo(({ content, className, isInline = false }) => {
+  const containerRef = useRef<HTMLElement>(null);
+
+  const processedContent = React.useMemo(() => {
+    return autoWrapLaTeX(content);
+  }, [content]);
+
+  useEffect(() => {
+    if (containerRef.current && typeof (window as any).renderMathInElement === 'function') {
+      (window as any).renderMathInElement(containerRef.current, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  }, [processedContent]);
+
+  const htmlContent = processedContent || '';
+
+  if (isInline) {
+    return (
+      <span
+        ref={containerRef as React.RefObject<HTMLSpanElement>}
+        className={className}
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef as React.RefObject<HTMLDivElement>}
+      className={className}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  );
+});
 
 interface Exam {
   id: string;
@@ -214,23 +278,7 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, [user]);
 
-  // Trigger KaTeX rendering whenever reviewQuestions list changes
-  useEffect(() => {
-    if (typeof (window as any).renderMathInElement === 'function') {
-      const timer = setTimeout(() => {
-        (window as any).renderMathInElement(document.body, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\(', right: '\\)', display: false },
-            { left: '\\[', right: '\\]', display: true }
-          ],
-          throwOnError: false
-        });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [reviewQuestions]);
+
 
   const handleOpenReview = async (attempt: Attempt) => {
     setSelectedAttempt(attempt);
@@ -744,14 +792,10 @@ export default function StudentDashboard() {
                       </div>
 
                       {/* Content */}
-                      {/<[a-z][\s\S]*>/i.test(q.content) ? (
-                        <div 
-                          className="text-sm font-semibold text-slate-800 my-0 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
-                          dangerouslySetInnerHTML={{ __html: q.content }} 
-                        />
-                      ) : (
-                        <p className="text-sm font-semibold text-slate-800 my-0 leading-relaxed whitespace-pre-line">{q.content}</p>
-                      )}
+                      <MathContent 
+                        className="text-sm font-semibold text-slate-800 my-0 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                        content={q.content} 
+                      />
 
                       {/* Options and selected answers depending on type */}
                       {q.type === 'trac_nghiem' && (
@@ -770,11 +814,7 @@ export default function StudentDashboard() {
                                   {opt.key}
                                 </span>
                                 <span className="flex-1">
-                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                  ) : (
-                                    opt.text
-                                  )}
+                                  <MathContent content={opt.text} isInline={true} />
                                 </span>
                                 {isSelected && !isCorrectAnswer && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                                 {isCorrectAnswer && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
@@ -800,11 +840,7 @@ export default function StudentDashboard() {
                                     {opt.key}
                                   </span>
                                   <span className="text-slate-700">
-                                    {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                    ) : (
-                                      opt.text
-                                    )}
+                                    <MathContent content={opt.text} isInline={true} />
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-auto">
@@ -848,11 +884,7 @@ export default function StudentDashboard() {
                                 {(q.metadata?.left_options || []).map((l: any) => (
                                   <p key={l.key} className="leading-snug">
                                     <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                                    {/<[a-z][\s\S]*>/i.test(l.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: l.text }} />
-                                    ) : (
-                                      l.text
-                                    )}
+                                    <MathContent content={l.text} isInline={true} />
                                   </p>
                                 ))}
                               </div>
@@ -863,11 +895,7 @@ export default function StudentDashboard() {
                                 {(q.metadata?.right_options || []).map((r: any) => (
                                   <p key={r.key} className="leading-snug">
                                     <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                                    {/<[a-z][\s\S]*>/i.test(r.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: r.text }} />
-                                    ) : (
-                                      r.text
-                                    )}
+                                    <MathContent content={r.text} isInline={true} />
                                   </p>
                                 ))}
                               </div>
@@ -927,16 +955,10 @@ export default function StudentDashboard() {
                                   </span>
                                 </div>
 
-                                {/<[a-z][\s\S]*>/i.test(sub.content) ? (
-                                  <div 
-                                    className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
-                                    dangerouslySetInnerHTML={{ __html: sub.content }}
-                                  />
-                                ) : (
-                                  <p className="font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
-                                    {sub.content}
-                                  </p>
-                                )}
+                                <MathContent 
+                                  className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                                  content={sub.content}
+                                />
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                   {(sub.options || []).map((opt: any) => {
@@ -953,11 +975,7 @@ export default function StudentDashboard() {
                                           {opt.key}
                                         </span>
                                         <span className="flex-1">
-                                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                          ) : (
-                                            opt.text
-                                          )}
+                                          <MathContent content={opt.text} isInline={true} />
                                         </span>
                                         {isOptSelected && !isOptCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                                         {isOptCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}

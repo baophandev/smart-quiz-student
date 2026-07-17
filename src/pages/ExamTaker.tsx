@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -7,13 +7,79 @@ import {
   AlertCircle, CheckCircle, Trophy
 } from 'lucide-react';
 
+interface MathContentProps {
+  content: string;
+  className?: string;
+  isInline?: boolean;
+}
+
+const autoWrapLaTeX = (text: string): string => {
+  if (!text) return '';
+  const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+(?:\s*\[[^\]]*\])?(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?:\s*[_^](?:[a-zA-Z0-9]+|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}))*)/g;
+  return text.replace(regex, (match) => {
+    if (
+      match.startsWith('$$') || 
+      match.startsWith('$') || 
+      match.startsWith('\\[') || 
+      match.startsWith('\\(')
+    ) {
+      return match;
+    }
+    return `$${match}$`;
+  });
+};
+
+const MathContent: React.FC<MathContentProps> = React.memo(({ content, className, isInline = false }) => {
+  const containerRef = useRef<HTMLElement>(null);
+  
+  const processedContent = React.useMemo(() => {
+    return autoWrapLaTeX(content);
+  }, [content]);
+
+  useEffect(() => {
+    if (containerRef.current && typeof (window as any).renderMathInElement === 'function') {
+      (window as any).renderMathInElement(containerRef.current, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  }, [processedContent]);
+
+  const htmlContent = processedContent || '';
+
+  if (isInline) {
+    return (
+      <span
+        ref={containerRef as React.RefObject<HTMLSpanElement>}
+        className={className}
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef as React.RefObject<HTMLDivElement>}
+      className={className}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  );
+});
+
 interface Question {
   id: string;
   order: number;
   content: string;
   type: 'trac_nghiem' | 'dung_sai' | 'tra_loi_ngan' | 'noi_cau' | 'ngu_lieu';
   metadata: any;
-  shuffledOptions?: any[]; // for trac_nghiem
+  shuffledOptions?: any[]; // for trac_nghiem and dung_sai
+  shuffledRightOptions?: any[]; // for noi_cau
+  shuffledSubQuestions?: any[]; // for ngu_lieu
 }
 
 export default function ExamTaker() {
@@ -126,9 +192,32 @@ export default function ExamTaker() {
               metadata: q.metadata || {}
             };
 
-            // Shuffle options if type is trac_nghiem
+            // 1. Shuffle options if type is trac_nghiem
             if (q.question_type === 'trac_nghiem' && q.metadata?.options) {
               questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+            }
+
+            // 2. Shuffle options (statements) if type is dung_sai
+            if (q.question_type === 'dung_sai' && q.metadata?.options) {
+              questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+            }
+
+            // 3. Shuffle right_options if type is noi_cau
+            if (q.question_type === 'noi_cau' && q.metadata?.right_options) {
+              questionObj.shuffledRightOptions = shuffleArray(q.metadata.right_options);
+            }
+
+            // 4. Shuffle options of each sub-question if type is ngu_lieu
+            if (q.question_type === 'ngu_lieu' && q.metadata?.sub_questions) {
+              questionObj.shuffledSubQuestions = q.metadata.sub_questions.map((sub: any) => {
+                if (sub.options) {
+                  return {
+                    ...sub,
+                    shuffledOptions: shuffleArray(sub.options)
+                  };
+                }
+                return sub;
+              });
             }
             return questionObj;
           });
@@ -326,23 +415,7 @@ export default function ExamTaker() {
     };
   }, []);
 
-  // Trigger KaTeX rendering whenever questions or current index changes
-  useEffect(() => {
-    if (typeof (window as any).renderMathInElement === 'function') {
-      const timer = setTimeout(() => {
-        (window as any).renderMathInElement(document.body, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\(', right: '\\)', display: false },
-            { left: '\\[', right: '\\]', display: true }
-          ],
-          throwOnError: false
-        });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [questions, currentIdx]);
+
 
   const isQuestionAnswered = (qId: string, qType: string) => {
     const ans = answers[qId];
@@ -715,16 +788,10 @@ export default function ExamTaker() {
               </div>
 
               {/* Question Text */}
-              {/<[a-z][\s\S]*>/i.test(currentQuestion.content) ? (
-                <div 
-                  className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
-                  dangerouslySetInnerHTML={{ __html: currentQuestion.content }} 
-                />
-              ) : (
-                <p className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-line my-0">
-                  {currentQuestion.content}
-                </p>
-              )}
+              <MathContent 
+                className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                content={currentQuestion.content} 
+              />
             </div>
 
             {/* Answer Options Selector */}
@@ -734,8 +801,9 @@ export default function ExamTaker() {
               {/* 1. Multiple Choice */}
               {currentQuestion.type === 'trac_nghiem' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {(currentQuestion.shuffledOptions || []).map((opt) => {
+                  {(currentQuestion.shuffledOptions || []).map((opt, optIdx) => {
                     const isSelected = answers[currentQuestion.id] === opt.key;
+                    const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
                     return (
                       <button
                         key={opt.key}
@@ -751,14 +819,10 @@ export default function ExamTaker() {
                             ? 'bg-indigo-600 border-indigo-650 text-white' 
                             : 'bg-slate-100 border-slate-200 text-slate-500'
                         }`}>
-                          {opt.key}
+                          {displayLabel}
                         </span>
                         <span className="flex-1">
-                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                          ) : (
-                            opt.text
-                          )}
+                          <MathContent content={opt.text} isInline={true} />
                         </span>
                       </button>
                     );
@@ -769,20 +833,17 @@ export default function ExamTaker() {
               {/* 2. True/False */}
               {currentQuestion.type === 'dung_sai' && (
                 <div className="space-y-3">
-                  {(currentQuestion.metadata?.options || []).map((opt: any) => {
+                  {(currentQuestion.shuffledOptions || currentQuestion.metadata?.options || []).map((opt: any, optIdx: number) => {
                     const studentVal = answers[currentQuestion.id]?.[opt.key]; // 'Đ' or 'S' or undefined
+                    const displayLabel = String.fromCharCode(97 + optIdx); // a, b, c, d...
                     return (
                       <div key={opt.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-slate-200 bg-white rounded-2xl gap-3">
                         <div className="flex items-start gap-2.5">
                           <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px] text-slate-500">
-                            {opt.key}
+                            {displayLabel}
                           </span>
                           <span className="text-slate-700 text-xs sm:text-sm">
-                            {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                            ) : (
-                              opt.text
-                            )}
+                            <MathContent content={opt.text} isInline={true} />
                           </span>
                         </div>
                         <div className="flex gap-2 shrink-0">
@@ -801,7 +862,7 @@ export default function ExamTaker() {
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'S'
                                 ? 'bg-amber-600 border-amber-650 text-white shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-650'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
                             }`}
                           >
                             Sai
@@ -837,11 +898,7 @@ export default function ExamTaker() {
                         {(currentQuestion.metadata?.left_options || []).map((l: any) => (
                           <p key={l.key} className="leading-snug">
                             <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                            {/<[a-z][\s\S]*>/i.test(l.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: l.text }} />
-                            ) : (
-                              l.text
-                            )}
+                            <MathContent content={l.text} isInline={true} />
                           </p>
                         ))}
                       </div>
@@ -849,14 +906,10 @@ export default function ExamTaker() {
                     <div className="space-y-2">
                       <p className="font-extrabold text-slate-450 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
                       <div className="space-y-1 text-xs">
-                        {(currentQuestion.metadata?.right_options || []).map((r: any) => (
+                        {(currentQuestion.shuffledRightOptions || currentQuestion.metadata?.right_options || []).map((r: any) => (
                           <p key={r.key} className="leading-snug">
                             <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                            {/<[a-z][\s\S]*>/i.test(r.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: r.text }} />
-                            ) : (
-                              r.text
-                            )}
+                            <MathContent content={r.text} isInline={true} />
                           </p>
                         ))}
                       </div>
@@ -892,7 +945,7 @@ export default function ExamTaker() {
               {/* 5. Reading Comprehension (Ngữ liệu) */}
               {currentQuestion.type === 'ngu_lieu' && (
                 <div className="space-y-6 pl-4 border-l-2 border-indigo-200">
-                  {(currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
+                  {(currentQuestion.shuffledSubQuestions || currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
                     const studentAns = answers[currentQuestion.id]?.[sub.id] || '';
                     return (
                       <div key={sub.id || subIdx} className="space-y-3 bg-white p-4 border border-slate-200 rounded-2xl">
@@ -901,20 +954,15 @@ export default function ExamTaker() {
                             {sub.title || `Câu hỏi ${subIdx + 1}`}
                           </span>
                         </div>
-                        {/<[a-z][\s\S]*>/i.test(sub.content) ? (
-                          <div 
-                            className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
-                            dangerouslySetInnerHTML={{ __html: sub.content }}
-                          />
-                        ) : (
-                          <p className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
-                            {sub.content}
-                          </p>
-                        )}
+                        <MathContent 
+                          className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                          content={sub.content}
+                        />
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {(sub.options || []).map((opt: any) => {
+                          {(sub.shuffledOptions || sub.options || []).map((opt: any, optIdx: number) => {
                             const isSelected = studentAns === opt.key;
+                            const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
                             return (
                               <button
                                 key={opt.key}
@@ -941,14 +989,10 @@ export default function ExamTaker() {
                                     ? 'bg-indigo-600 border-indigo-650 text-white' 
                                     : 'bg-slate-100 border-slate-200 text-slate-400'
                                 }`}>
-                                  {opt.key}
+                                  {displayLabel}
                                 </span>
                                 <span className="flex-1">
-                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                  ) : (
-                                    opt.text
-                                  )}
+                                  <MathContent content={opt.text} isInline={true} />
                                 </span>
                               </button>
                             );
