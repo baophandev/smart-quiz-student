@@ -854,7 +854,7 @@ export default function ExamTaker() {
       />
       
       {/* Top Header */}
-      <header className="bg-slate-900 text-white border-b border-slate-850 h-16 shrink-0 flex items-center justify-between px-4 sm:px-6">
+      <header className="bg-slate-900 text-white border-b border-slate-800 h-16 shrink-0 flex items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <button 
             onClick={handleGoBack}
@@ -870,7 +870,7 @@ export default function ExamTaker() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-850 border border-slate-800 text-amber-400">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-800 text-amber-400">
             <Clock className="w-4 h-4" />
             <span className="text-sm font-black font-mono tracking-wider">{formatTime(timeLeft)}</span>
           </div>
@@ -941,12 +941,12 @@ export default function ExamTaker() {
                         className={`flex items-start text-left gap-3 p-4 border rounded-2xl text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
                           isSelected
                             ? 'border-indigo-500 bg-indigo-50/30 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
-                            : 'border-slate-200 bg-white hover:border-slate-350 text-slate-700 hover:bg-slate-50/50'
+                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 hover:bg-slate-50/50'
                         }`}
                       >
                         <span className={`font-extrabold tracking-wider shrink-0 px-2 py-0.5 rounded-md text-[10px] border transition-colors ${
                           isSelected 
-                            ? 'bg-indigo-600 border-indigo-650 text-white' 
+                            ? 'bg-indigo-600 border-indigo-600 text-white' 
                             : 'bg-slate-100 border-slate-200 text-slate-500'
                         }`}>
                           {displayLabel}
@@ -981,7 +981,7 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'Đ')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'Đ'
-                                ? 'bg-indigo-600 border-indigo-655 text-white shadow-xs'
+                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
                                 : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
                             }`}
                           >
@@ -991,8 +991,8 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'S')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'S'
-                                ? 'bg-amber-600 border-amber-655 text-white shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
+                                ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
                             }`}
                           >
                             Sai
@@ -1012,7 +1012,7 @@ export default function ExamTaker() {
                     placeholder="Điền đáp án của câu hỏi tại đây..."
                     value={answers[currentQuestion.id] || ''}
                     onChange={(e) => handleTextChange(currentQuestion.id, e.target.value)}
-                    className="w-full p-3 border border-slate-250 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white placeholder:text-slate-400"
+                    className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white placeholder:text-slate-400"
                   />
                 </div>
               )}
@@ -1023,7 +1023,7 @@ export default function ExamTaker() {
                   {/* Visual options */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white border border-slate-200 rounded-2xl">
                     <div className="space-y-2">
-                      <p className="font-extrabold text-slate-450 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế trái (L)</p>
+                      <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế trái (L)</p>
                       <div className="space-y-1 text-xs">
                         {(currentQuestion.metadata?.left_options || []).map((l: any) => (
                           <p key={l.key} className="leading-snug">
@@ -1034,7 +1034,7 @@ export default function ExamTaker() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <p className="font-extrabold text-slate-450 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
+                      <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
                       <div className="space-y-1 text-xs">
                         {(currentQuestion.shuffledRightOptions || currentQuestion.metadata?.right_options || []).map((r: any) => (
                           <p key={r.key} className="leading-snug">
@@ -1085,7 +1085,7 @@ export default function ExamTaker() {
                           </span>
                         </div>
                         <MathContent 
-                          className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                          className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
                           content={sub.content}
                         />
 
@@ -1111,12 +1111,12 @@ export default function ExamTaker() {
                                 className={`flex items-start text-left gap-2 px-3 py-2 border rounded-xl text-xs transition-all duration-200 cursor-pointer ${
                                   isSelected
                                     ? 'border-indigo-500 bg-indigo-50/20 text-indigo-900 font-semibold ring-1 ring-indigo-500'
-                                    : 'border-slate-200 bg-white hover:border-slate-305 text-slate-600 hover:bg-slate-50/50'
+                                    : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600 hover:bg-slate-50/50'
                                 }`}
                               >
                                 <span className={`font-extrabold shrink-0 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
                                   isSelected 
-                                    ? 'bg-indigo-600 border-indigo-650 text-white' 
+                                    ? 'bg-indigo-600 border-indigo-600 text-white' 
                                     : 'bg-slate-100 border-slate-200 text-slate-400'
                                 }`}>
                                   {displayLabel}
@@ -1170,9 +1170,9 @@ export default function ExamTaker() {
                   const isCurrent = idx === currentIdx;
                   const isAnswered = isQuestionAnswered(q.id, q.type);
 
-                  let cellStyle = 'border-slate-200 hover:bg-slate-50 text-slate-600 hover:border-slate-350';
-                  if (isAnswered) cellStyle = 'bg-indigo-600 border-indigo-650 text-white hover:bg-indigo-700';
-                  if (isCurrent) cellStyle = 'ring-2 ring-indigo-500 border-indigo-500 font-extrabold text-indigo-750 bg-indigo-50';
+                  let cellStyle = 'border-slate-200 hover:bg-slate-50 text-slate-600 hover:border-slate-300';
+                  if (isAnswered) cellStyle = 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700';
+                  if (isCurrent) cellStyle = 'ring-2 ring-indigo-500 border-indigo-500 font-extrabold text-indigo-700 bg-indigo-50';
                   if (isCurrent && isAnswered) cellStyle = 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-700 text-white font-extrabold';
 
                   return (
@@ -1189,7 +1189,7 @@ export default function ExamTaker() {
             </div>
 
             {/* Completion indicator */}
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5 text-xs text-slate-550">
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5 text-xs text-slate-500">
               <div className="flex justify-between items-center">
                 <span>Số câu đã làm:</span>
                 <strong className="text-slate-800">{questions.filter(q => isQuestionAnswered(q.id, q.type)).length} / {questions.length}</strong>

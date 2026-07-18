@@ -110,7 +110,7 @@ export default function ResetPassword() {
           alt="Logo" 
           className="w-12 h-12 object-contain mb-4 animate-bounce"
         />
-        <div className="flex items-center gap-2 text-emerald-450 text-xs font-semibold tracking-wider uppercase">
+        <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold tracking-wider uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           Đang xác thực liên kết...
         </div>

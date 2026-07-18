@@ -155,7 +155,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => navigate('/forgot-password')}
-                  className="text-xs text-indigo-400 hover:text-emerald-450 transition-colors cursor-pointer"
+                  className="text-xs text-indigo-400 hover:text-emerald-400 transition-colors cursor-pointer"
                 >
                   Quên mật khẩu?
                 </button>
