@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,70 @@ import {
   XCircle, ChevronRight, Calendar, Search, 
   HelpCircle, Eye, AlertCircle, Sparkles, Trophy, X, Loader2, Key
 } from 'lucide-react';
+
+interface MathContentProps {
+  content: string;
+  className?: string;
+  isInline?: boolean;
+}
+
+const autoWrapLaTeX = (text: string): string => {
+  if (!text) return '';
+  const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+(?:\s*\[[^\]]*\])?(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?:\s*[_^](?:[a-zA-Z0-9]+|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}))*)/g;
+  return text.replace(regex, (match) => {
+    if (
+      match.startsWith('$$') || 
+      match.startsWith('$') || 
+      match.startsWith('\\[') || 
+      match.startsWith('\\(')
+    ) {
+      return match;
+    }
+    return `$${match}$`;
+  });
+};
+
+const MathContent: React.FC<MathContentProps> = React.memo(({ content, className, isInline = false }) => {
+  const containerRef = useRef<HTMLElement>(null);
+
+  const processedContent = React.useMemo(() => {
+    return autoWrapLaTeX(content);
+  }, [content]);
+
+  useEffect(() => {
+    if (containerRef.current && typeof (window as any).renderMathInElement === 'function') {
+      (window as any).renderMathInElement(containerRef.current, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  }, [processedContent]);
+
+  const htmlContent = processedContent || '';
+
+  if (isInline) {
+    return (
+      <span
+        ref={containerRef as React.RefObject<HTMLSpanElement>}
+        className={className}
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef as React.RefObject<HTMLDivElement>}
+      className={className}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  );
+});
 
 interface Exam {
   id: string;
@@ -28,6 +92,7 @@ interface Attempt {
   total_questions_count: number | null;
   status: 'in_progress' | 'completed';
   answers: any[] | null;
+  questions_list?: any[] | null;
   exam: {
     title: string;
     duration: number;
@@ -37,8 +102,11 @@ interface Attempt {
 export default function StudentDashboard() {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const autoSubmittedAttemptIds = useRef<Set<string>>(new Set());
 
   const [exams, setExams] = useState<Exam[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,42 +181,52 @@ export default function StudentDashboard() {
       // Fetch courses this student is enrolled in
       const { data: enrollments, error: enrollErr } = await supabase
         .from('course_enrollments')
-        .select('course_id')
+        .select(`
+          course_id,
+          course:courses(id, name, description)
+        `)
         .eq('student_id', user.id);
 
       if (enrollErr) throw enrollErr;
-      const enrolledCourseIds = (enrollments || []).map((e: any) => e.course_id);
 
-      // 1. Fetch published exams
-      let examsQuery = supabase
-        .from('exams')
-        .select(`
-          id,
-          title,
-          duration,
-          status,
-          created_at,
-          credit_cost,
-          course_id,
-          course:courses(name),
-          exam_questions (
-            question_id
-          )
-        `)
-        .eq('status', 'published')
-        .order('created_at', { ascending: false });
+      const enrolledCourses = (enrollments || [])
+        .map((e: any) => e.course)
+        .filter(Boolean);
 
-      if (enrolledCourseIds.length > 0) {
-        examsQuery = examsQuery.in('course_id', enrolledCourseIds);
-      } else {
-        setExams([]);
-        setLoading(false);
-        return;
+      setCourses(enrolledCourses);
+
+      // Determine which course is active
+      let activeCourseId = selectedCourseId;
+      if (!activeCourseId && enrolledCourses.length > 0) {
+        activeCourseId = enrolledCourses[0].id;
+        setSelectedCourseId(enrolledCourses[0].id);
       }
 
-      const { data: examsData, error: examsErr } = await examsQuery;
+      // 1. Fetch published exams for the active course
+      let examsData: any[] = [];
+      if (activeCourseId) {
+        const { data, error: examsErr } = await supabase
+          .from('exams')
+          .select(`
+            id,
+            title,
+            duration,
+            status,
+            created_at,
+            credit_cost,
+            course_id,
+            course:courses(name),
+            exam_questions (
+              question_id
+            )
+          `)
+          .eq('status', 'published')
+          .eq('course_id', activeCourseId)
+          .order('created_at', { ascending: false });
 
-      if (examsErr) throw examsErr;
+        if (examsErr) throw examsErr;
+        examsData = data || [];
+      }
 
       // 2. Fetch attempts of this student
       const { data: attemptsData, error: attemptsErr } = await supabase
@@ -163,6 +241,7 @@ export default function StudentDashboard() {
           total_questions_count,
           status,
           answers,
+          questions_list,
           exam:exams (
             title,
             duration
@@ -196,12 +275,52 @@ export default function StudentDashboard() {
         total_questions_count: att.total_questions_count,
         status: att.status,
         answers: att.answers,
+        questions_list: att.questions_list,
         exam: Array.isArray(att.exam) 
           ? att.exam[0] || null 
           : att.exam || null
       }));
       
       setAttempts(mappedAttempts as Attempt[]);
+
+      // Check for expired in_progress attempts
+      const expiredAttempts = mappedAttempts.filter((att: any) => {
+        if (att.status !== 'in_progress') return false;
+        const startedTime = new Date(att.started_at).getTime();
+        const durationMinutes = att.exam?.duration || 45;
+        const totalDurationSeconds = durationMinutes * 60;
+        const elapsedSeconds = Math.floor((Date.now() - startedTime) / 1000);
+        // Expired if elapsed time is greater than duration + 30s grace period
+        return elapsedSeconds >= (totalDurationSeconds + 30);
+      });
+
+      const toSubmit = expiredAttempts.filter((att: any) => !autoSubmittedAttemptIds.current.has(att.id));
+      if (toSubmit.length > 0) {
+        toSubmit.forEach((att: any) => autoSubmittedAttemptIds.current.add(att.id));
+        await Promise.all(toSubmit.map(async (att: any) => {
+          try {
+            // Map draft answers
+            const payload = Array.isArray(att.answers)
+              ? att.answers.map((a: any) => ({
+                  question_id: a.question_id,
+                  selected_answer: a.selected_answer !== undefined ? a.selected_answer : null
+                }))
+              : [];
+            
+            await supabase.rpc('submit_and_score_exam', {
+              p_exam_id: att.exam_id,
+              p_student_id: user.id,
+              p_answers: payload
+            });
+          } catch (e) {
+            console.error('Lỗi tự động nộp bài thi hết hạn:', e);
+          }
+        }));
+        
+        // Re-fetch dashboard data to show the updated completed states
+        fetchDashboardData();
+        return;
+      }
     } catch (err: any) {
       console.error('Lỗi tải dữ liệu học tập:', err);
       setError('Không thể kết nối cơ sở dữ liệu để tải thông tin.');
@@ -212,7 +331,9 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [user]);
+  }, [user, selectedCourseId]);
+
+
 
   const handleOpenReview = async (attempt: Attempt) => {
     setSelectedAttempt(attempt);
@@ -220,37 +341,41 @@ export default function StudentDashboard() {
     
     setReviewLoading(true);
     try {
-      // Fetch details of questions in this exam to show contents during review
-      const { data, error: qErr } = await supabase
-        .from('exam_questions')
-        .select(`
-          question_order,
-          question:questions (
-            id,
-            content,
-            question_type,
-            metadata
-          )
-        `)
-        .eq('exam_id', attempt.exam_id)
-        .order('question_order', { ascending: true });
+      const qList = (attempt.questions_list || []) as { question_id: string; score: number }[];
+      const qIds = qList.map((item: any) => item.question_id);
+
+      if (qIds.length === 0) {
+        throw new Error('Không tìm thấy danh sách câu hỏi của lượt làm bài thi này.');
+      }
+
+      // Fetch details of questions in this attempt
+      const { data: qData, error: qErr } = await supabase
+        .from('questions')
+        .select('id, content, question_type, metadata')
+        .in('id', qIds);
 
       if (qErr) throw qErr;
 
-      // Merge student answers with question contents
-      const merged = (data || []).map((item: any) => {
-        const studentAnsObj = attempt.answers?.find((a: any) => a.question_id === item.question?.id);
-        return {
-          order: item.question_order,
-          id: item.question?.id,
-          content: item.question?.content,
-          type: item.question?.question_type,
-          metadata: item.question?.metadata,
-          selected: studentAnsObj ? studentAnsObj.selected_answer : null,
-          isCorrect: studentAnsObj ? studentAnsObj.is_correct : false,
-          score: studentAnsObj ? studentAnsObj.score : 0,
-        };
-      });
+      const questionsMap = new Map((qData || []).map((q: any) => [q.id, q]));
+
+      // Merge student answers with question contents and maintain original questions_list order
+      const merged = qList
+        .map((item: any, idx: number) => {
+          const q = questionsMap.get(item.question_id);
+          if (!q) return null;
+          const studentAnsObj = attempt.answers?.find((a: any) => a.question_id === q.id);
+          return {
+            order: idx + 1,
+            id: q.id,
+            content: q.content,
+            type: q.question_type,
+            metadata: q.metadata,
+            selected: studentAnsObj ? studentAnsObj.selected_answer : null,
+            isCorrect: studentAnsObj ? studentAnsObj.is_correct : false,
+            score: studentAnsObj ? studentAnsObj.score : 0,
+          };
+        })
+        .filter(Boolean);
 
       setReviewQuestions(merged);
     } catch (err) {
@@ -427,6 +552,35 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        {/* Course Selection */}
+        {courses.length > 0 && (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-2xs space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <span>📚</span> Khóa học của bạn
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {courses.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCourseId(c.id)}
+                  className={`px-5 py-3 rounded-2xl text-xs font-extrabold transition-all duration-200 text-left border cursor-pointer ${
+                    selectedCourseId === c.id
+                      ? 'bg-indigo-650 text-white border-transparent shadow-md shadow-indigo-100 scale-[1.02]'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="font-extrabold text-sm">{c.name}</div>
+                  {c.description && (
+                    <div className={`text-[10px] mt-0.5 font-normal ${selectedCourseId === c.id ? 'text-indigo-200' : 'text-slate-450'}`}>
+                      {c.description}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tab & Search Panel */}
         <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="flex bg-slate-100 rounded-xl p-1 w-full sm:w-auto">
@@ -537,24 +691,52 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleStartExam(ex)}
-                    className="mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md"
-                  >
-                    <span>Làm bài ngay</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const hasInProgress = attempts.some(a => a.exam_id === ex.id && a.status === 'in_progress');
+                    return (
+                      <button
+                        onClick={() => handleStartExam(ex)}
+                        className={`mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md ${
+                          hasInProgress
+                            ? 'bg-amber-650 hover:bg-amber-700 text-white'
+                            : 'bg-indigo-650 hover:bg-indigo-700 text-white'
+                        }`}
+                      >
+                        {hasInProgress ? (
+                          <>
+                            <span>Tiếp tục làm bài</span>
+                            <Clock className="w-3.5 h-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            <span>Làm bài ngay</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
-              <BookOpen className="w-12 h-12 text-slate-350 mb-3" />
-              <h3 className="text-base font-bold text-slate-800">Chưa có đề thi nào khả dụng</h3>
-              <p className="text-sm text-slate-500 max-w-xs mt-1">
-                Hiện tại giáo viên chưa xuất bản đề thi nào. Hãy quay lại sau nhé!
-              </p>
-            </div>
+            courses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
+                <AlertCircle className="w-12 h-12 text-amber-500 mb-3" />
+                <h3 className="text-base font-bold text-slate-800">Bạn chưa được ghi danh vào khóa học nào</h3>
+                <p className="text-sm text-slate-500 max-w-sm mt-1">
+                  Hiện tại tài khoản của bạn chưa liên kết với khóa học nào. Vui lòng liên hệ Giáo viên để được thêm vào lớp học tương ứng.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
+                <BookOpen className="w-12 h-12 text-slate-350 mb-3" />
+                <h3 className="text-base font-bold text-slate-800">Chưa có đề thi nào khả dụng</h3>
+                <p className="text-sm text-slate-500 max-w-xs mt-1">
+                  Hiện tại giáo viên chưa xuất bản đề thi nào cho khóa học này. Hãy quay lại sau nhé!
+                </p>
+              </div>
+            )
           )
         ) : (
           filteredHistory.length > 0 ? (
@@ -617,13 +799,31 @@ export default function StudentDashboard() {
                           )}
                         </td>
                         <td className="p-4 pr-6 text-center">
-                          {att.status === 'completed' && (
+                          {att.status === 'completed' ? (
                             <button
                               onClick={() => handleOpenReview(att)}
                               className="inline-flex items-center justify-center gap-1 px-3 py-1.5 border border-indigo-100 hover:bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>Xem lại bài</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const examObj: Exam = {
+                                  id: att.exam_id,
+                                  title: att.exam?.title || '',
+                                  duration: att.exam?.duration || 45,
+                                  questionsCount: att.total_questions_count || 0,
+                                  createdAt: '',
+                                  credit_cost: 0
+                                };
+                                handleStartExam(examObj);
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 border border-amber-100 hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Tiếp tục làm</span>
                             </button>
                           )}
                         </td>
@@ -726,14 +926,10 @@ export default function StudentDashboard() {
                       </div>
 
                       {/* Content */}
-                      {/<[a-z][\s\S]*>/i.test(q.content) ? (
-                        <div 
-                          className="text-sm font-semibold text-slate-800 my-0 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
-                          dangerouslySetInnerHTML={{ __html: q.content }} 
-                        />
-                      ) : (
-                        <p className="text-sm font-semibold text-slate-800 my-0 leading-relaxed whitespace-pre-line">{q.content}</p>
-                      )}
+                      <MathContent 
+                        className="text-sm font-semibold text-slate-800 my-0 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                        content={q.content} 
+                      />
 
                       {/* Options and selected answers depending on type */}
                       {q.type === 'trac_nghiem' && (
@@ -752,11 +948,7 @@ export default function StudentDashboard() {
                                   {opt.key}
                                 </span>
                                 <span className="flex-1">
-                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                  ) : (
-                                    opt.text
-                                  )}
+                                  <MathContent content={opt.text} isInline={true} />
                                 </span>
                                 {isSelected && !isCorrectAnswer && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                                 {isCorrectAnswer && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
@@ -782,11 +974,7 @@ export default function StudentDashboard() {
                                     {opt.key}
                                   </span>
                                   <span className="text-slate-700">
-                                    {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                    ) : (
-                                      opt.text
-                                    )}
+                                    <MathContent content={opt.text} isInline={true} />
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-auto">
@@ -830,11 +1018,7 @@ export default function StudentDashboard() {
                                 {(q.metadata?.left_options || []).map((l: any) => (
                                   <p key={l.key} className="leading-snug">
                                     <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                                    {/<[a-z][\s\S]*>/i.test(l.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: l.text }} />
-                                    ) : (
-                                      l.text
-                                    )}
+                                    <MathContent content={l.text} isInline={true} />
                                   </p>
                                 ))}
                               </div>
@@ -845,11 +1029,7 @@ export default function StudentDashboard() {
                                 {(q.metadata?.right_options || []).map((r: any) => (
                                   <p key={r.key} className="leading-snug">
                                     <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                                    {/<[a-z][\s\S]*>/i.test(r.text) ? (
-                                      <span dangerouslySetInnerHTML={{ __html: r.text }} />
-                                    ) : (
-                                      r.text
-                                    )}
+                                    <MathContent content={r.text} isInline={true} />
                                   </p>
                                 ))}
                               </div>
@@ -909,16 +1089,10 @@ export default function StudentDashboard() {
                                   </span>
                                 </div>
 
-                                {/<[a-z][\s\S]*>/i.test(sub.content) ? (
-                                  <div 
-                                    className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
-                                    dangerouslySetInnerHTML={{ __html: sub.content }}
-                                  />
-                                ) : (
-                                  <p className="font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
-                                    {sub.content}
-                                  </p>
-                                )}
+                                <MathContent 
+                                  className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                                  content={sub.content}
+                                />
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                   {(sub.options || []).map((opt: any) => {
@@ -935,11 +1109,7 @@ export default function StudentDashboard() {
                                           {opt.key}
                                         </span>
                                         <span className="flex-1">
-                                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                          ) : (
-                                            opt.text
-                                          )}
+                                          <MathContent content={opt.text} isInline={true} />
                                         </span>
                                         {isOptSelected && !isOptCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                                         {isOptCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}

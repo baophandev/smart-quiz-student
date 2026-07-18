@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -7,13 +7,79 @@ import {
   AlertCircle, CheckCircle, Trophy
 } from 'lucide-react';
 
+interface MathContentProps {
+  content: string;
+  className?: string;
+  isInline?: boolean;
+}
+
+const autoWrapLaTeX = (text: string): string => {
+  if (!text) return '';
+  const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+(?:\s*\[[^\]]*\])?(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?:\s*[_^](?:[a-zA-Z0-9]+|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}))*)/g;
+  return text.replace(regex, (match) => {
+    if (
+      match.startsWith('$$') || 
+      match.startsWith('$') || 
+      match.startsWith('\\[') || 
+      match.startsWith('\\(')
+    ) {
+      return match;
+    }
+    return `$${match}$`;
+  });
+};
+
+const MathContent: React.FC<MathContentProps> = React.memo(({ content, className, isInline = false }) => {
+  const containerRef = useRef<HTMLElement>(null);
+  
+  const processedContent = React.useMemo(() => {
+    return autoWrapLaTeX(content);
+  }, [content]);
+
+  useEffect(() => {
+    if (containerRef.current && typeof (window as any).renderMathInElement === 'function') {
+      (window as any).renderMathInElement(containerRef.current, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  }, [processedContent]);
+
+  const htmlContent = processedContent || '';
+
+  if (isInline) {
+    return (
+      <span
+        ref={containerRef as React.RefObject<HTMLSpanElement>}
+        className={className}
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef as React.RefObject<HTMLDivElement>}
+      className={className}
+      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    />
+  );
+});
+
 interface Question {
   id: string;
   order: number;
   content: string;
   type: 'trac_nghiem' | 'dung_sai' | 'tra_loi_ngan' | 'noi_cau' | 'ngu_lieu';
   metadata: any;
-  shuffledOptions?: any[]; // for trac_nghiem
+  shuffledOptions?: any[]; // for trac_nghiem and dung_sai
+  shuffledRightOptions?: any[]; // for noi_cau
+  shuffledSubQuestions?: any[]; // for ngu_lieu
 }
 
 export default function ExamTaker() {
@@ -29,6 +95,7 @@ export default function ExamTaker() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   
   // New result modal states
   const [duration, setDuration] = useState<number>(45);
@@ -75,7 +142,7 @@ export default function ExamTaker() {
         setError(null);
 
         // A. Start Exam Attempt on DB
-        const { error: attemptErr } = await supabase.rpc(
+        const { data: attemptIdVal, error: attemptErr } = await supabase.rpc(
           'start_exam_attempt',
           {
             p_exam_id: examId,
@@ -84,6 +151,7 @@ export default function ExamTaker() {
         );
 
         if (attemptErr) throw attemptErr;
+        setAttemptId(attemptIdVal);
 
         // B. Fetch Exam Info
         const { data: examData, error: examErr } = await supabase
@@ -96,27 +164,77 @@ export default function ExamTaker() {
         setExamTitle(examData.title);
         setDuration(examData.duration || 45);
 
-        // C. Fetch Questions
-        const { data: qData, error: qErr } = await supabase
-          .from('exam_questions')
-          .select(`
-            question_order,
-            question:questions (
-              id,
-              content,
-              question_type,
-              difficulty_level,
-              metadata
-            )
-          `)
-          .eq('exam_id', examId)
-          .order('question_order', { ascending: true });
+        // C. Fetch Attempt Details to get questions_list, started_at, and existing draft answers
+        const { data: attemptData, error: attemptFetchErr } = await supabase
+          .from('exam_attempts')
+          .select('questions_list, started_at, answers')
+          .eq('id', attemptIdVal)
+          .single();
 
-        if (qErr) throw qErr;
+        if (attemptFetchErr) throw attemptFetchErr;
+        const qList = (attemptData?.questions_list || []) as { question_id: string; score: number }[];
+        const qIds = qList.map((item: any) => item.question_id);
 
-        const validQuestions = (qData || [])
-          .filter((item: any) => item.question)
-          .map((item: any) => {
+        let questionsData: any[] = [];
+        if (qIds.length > 0) {
+          // D. Fetch Questions dynamically based on questions_list
+          const { data: qData, error: qErr } = await supabase
+            .from('questions')
+            .select('id, content, question_type, difficulty_level, metadata')
+            .in('id', qIds);
+          if (qErr) throw qErr;
+          const questionsMap = new Map((qData || []).map((q: any) => [q.id, q]));
+          const validQuestions = qList
+            .map((item: any, idx: number) => {
+              const q = questionsMap.get(item.question_id);
+              if (!q) return null;
+              const questionObj: Question = {
+                id: q.id,
+                order: idx + 1,
+                content: q.content,
+                type: q.question_type,
+                metadata: q.metadata || {}
+              };
+              // Shuffle options as before
+              if (q.question_type === 'trac_nghiem' && q.metadata?.options) {
+                questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+              }
+              if (q.question_type === 'dung_sai' && q.metadata?.options) {
+                questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+              }
+              if (q.question_type === 'noi_cau' && q.metadata?.right_options) {
+                questionObj.shuffledRightOptions = shuffleArray(q.metadata.right_options);
+              }
+              if (q.question_type === 'ngu_lieu' && q.metadata?.sub_questions) {
+                questionObj.shuffledSubQuestions = q.metadata.sub_questions.map((sub: any) => {
+                  if (sub.options) {
+                    return { ...sub, shuffledOptions: shuffleArray(sub.options) };
+                  }
+                  return sub;
+                });
+              }
+              return questionObj;
+            })
+            .filter(Boolean) as Question[];
+          questionsData = validQuestions;
+        } else {
+          // Fallback: legacy static exam_questions (when matrix is empty or not stored)
+          const { data: qData, error: qErr } = await supabase
+            .from('exam_questions')
+            .select(`
+              question_order,
+              question:questions (
+                id,
+                content,
+                question_type,
+                difficulty_level,
+                metadata
+              )
+            `)
+            .eq('exam_id', examId)
+            .order('question_order', { ascending: true });
+          if (qErr) throw qErr;
+          questionsData = (qData || []).map((item: any) => {
             const q = item.question;
             const questionObj: Question = {
               id: q.id,
@@ -125,40 +243,121 @@ export default function ExamTaker() {
               type: q.question_type,
               metadata: q.metadata || {}
             };
-
-            // Shuffle options if type is trac_nghiem
             if (q.question_type === 'trac_nghiem' && q.metadata?.options) {
               questionObj.shuffledOptions = shuffleArray(q.metadata.options);
             }
+            if (q.question_type === 'dung_sai' && q.metadata?.options) {
+              questionObj.shuffledOptions = shuffleArray(q.metadata.options);
+            }
+            if (q.question_type === 'noi_cau' && q.metadata?.right_options) {
+              questionObj.shuffledRightOptions = shuffleArray(q.metadata.right_options);
+            }
+            if (q.question_type === 'ngu_lieu' && q.metadata?.sub_questions) {
+              questionObj.shuffledSubQuestions = q.metadata.sub_questions.map((sub: any) => {
+                if (sub.options) {
+                  return { ...sub, shuffledOptions: shuffleArray(sub.options) };
+                }
+                return sub;
+              });
+            }
             return questionObj;
           });
-
-        setQuestions(validQuestions);
-
-        // D. Setup Countdown Timer (LocalStorage check for Anti-F5)
-        const storageTimeKey = `exam_time_left_${examId}_${user.id}`;
-        const savedTimeLeft = localStorage.getItem(storageTimeKey);
-        
-        if (savedTimeLeft !== null) {
-          const parsed = parseInt(savedTimeLeft, 10);
-          setTimeLeft(parsed > 0 ? parsed : 0);
-        } else {
-          // Duration in minutes converted to seconds
-          const durationSeconds = (examData.duration || 45) * 60;
-          setTimeLeft(durationSeconds);
-          localStorage.setItem(storageTimeKey, durationSeconds.toString());
         }
 
-        // E. Fetch in_progress answers from LocalStorage if any
+        setQuestions(questionsData as Question[]);
+
+        // Setup Countdown Timer based on DB started_at (server-authoritative to prevent cheating & support resume)
+        const startedTime = new Date(attemptData.started_at).getTime();
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - startedTime) / 1000);
+        const totalDurationSeconds = (examData.duration || 45) * 60;
+        const actualTimeLeft = totalDurationSeconds - elapsedSeconds;
+
+        // Load existing answers (merge DB and local storage)
+        const initialAnswers: Record<string, any> = {};
+        if (attemptData?.answers && Array.isArray(attemptData.answers)) {
+          attemptData.answers.forEach((ans: any) => {
+            if (ans && ans.question_id) {
+              initialAnswers[ans.question_id] = ans.selected_answer;
+            }
+          });
+        }
+
         const storageAnswersKey = `exam_answers_${examId}_${user.id}`;
         const savedAnswers = localStorage.getItem(storageAnswersKey);
+        let mergedAnswers = { ...initialAnswers };
         if (savedAnswers) {
           try {
-            setAnswers(JSON.parse(savedAnswers));
+            const parsedSaved = JSON.parse(savedAnswers);
+            mergedAnswers = { ...mergedAnswers, ...parsedSaved };
           } catch (e) {
-            console.error('Lỗi phân tích cú pháp câu trả lời nháp:', e);
+            console.error('Lỗi phân tích cú pháp câu trả lời nháp từ LocalStorage:', e);
           }
         }
+        setAnswers(mergedAnswers);
+
+        if (actualTimeLeft <= 0) {
+          // If time has expired while away, immediately auto-submit and show result
+          setError('Hết giờ làm bài! Hệ thống đang tự động nộp bài thi...');
+          
+          const payload = questionsData.map((q: any) => {
+            const selected = mergedAnswers[q.id];
+            return {
+              question_id: q.id,
+              selected_answer: selected !== undefined ? selected : null
+            };
+          });
+
+          const { data: finalAttemptId, error: submitErr } = await supabase.rpc(
+            'submit_and_score_exam',
+            {
+              p_exam_id: examId,
+              p_student_id: user.id,
+              p_answers: payload
+            }
+          );
+
+          if (submitErr) throw submitErr;
+
+          // Clean local storage
+          localStorage.removeItem(`exam_time_left_${examId}_${user.id}`);
+          localStorage.removeItem(storageAnswersKey);
+
+          let score = 0;
+          let correctAnswersCount = 0;
+          let totalQuestionsCount = questionsData.length;
+
+          if (finalAttemptId) {
+            const { data: finalData, error: fetchErr } = await supabase
+              .from('exam_attempts')
+              .select('score, correct_answers_count, total_questions_count')
+              .eq('id', finalAttemptId)
+              .single();
+
+            if (!fetchErr && finalData) {
+              score = finalData.score;
+              correctAnswersCount = finalData.correct_answers_count;
+              totalQuestionsCount = finalData.total_questions_count;
+            }
+          }
+
+          setResultData({
+            score,
+            correctAnswersCount,
+            totalQuestionsCount,
+            timeSpentStr: `${examData.duration || 45} phút 0 giây (Hết giờ)`,
+            isManual: false
+          });
+          setShowResultModal(true);
+          setLoading(false);
+          return;
+        }
+
+        // Set remaining timer
+        setTimeLeft(actualTimeLeft);
+        const storageTimeKey = `exam_time_left_${examId}_${user.id}`;
+        localStorage.setItem(storageTimeKey, actualTimeLeft.toString());
+
       } catch (err: any) {
         console.error('Lỗi khi bắt đầu làm đề thi:', err);
         setError(err.message || 'Không thể tải đề thi này hoặc có lỗi phân quyền.');
@@ -194,12 +393,31 @@ export default function ExamTaker() {
     };
   }, [loading, timeLeft, submitting]);
 
-  // 3. Save answers to LocalStorage whenever they change
+  // 3. Save answers to LocalStorage and Database in real-time (with 1s debounce)
   useEffect(() => {
-    if (Object.keys(answers).length === 0 || !user || !examId) return;
+    if (!user || !examId || !attemptId) return;
+
     const storageAnswersKey = `exam_answers_${examId}_${user.id}`;
     localStorage.setItem(storageAnswersKey, JSON.stringify(answers));
-  }, [answers, examId, user]);
+
+    const payload = Object.keys(answers).map(qId => ({
+      question_id: qId,
+      selected_answer: answers[qId]
+    }));
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        await supabase
+          .from('exam_attempts')
+          .update({ answers: payload })
+          .eq('id', attemptId);
+      } catch (err) {
+        console.error('Error saving answers draft to DB:', err);
+      }
+    }, 1000);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [answers, examId, user, attemptId]);
 
   // 4. Anti-copy / Anti-cheat protections
   useEffect(() => {
@@ -325,6 +543,8 @@ export default function ExamTaker() {
       console.info = originalInfo;
     };
   }, []);
+
+
 
   const isQuestionAnswered = (qId: string, qType: string) => {
     const ans = answers[qId];
@@ -674,8 +894,9 @@ export default function ExamTaker() {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
         {/* Left Side: Question Board */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 flex flex-col justify-between">
-          <div className="space-y-6">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Scrollable Question Content */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {/* Index card */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
@@ -697,16 +918,10 @@ export default function ExamTaker() {
               </div>
 
               {/* Question Text */}
-              {/<[a-z][\s\S]*>/i.test(currentQuestion.content) ? (
-                <div 
-                  className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
-                  dangerouslySetInnerHTML={{ __html: currentQuestion.content }} 
-                />
-              ) : (
-                <p className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed whitespace-pre-line my-0">
-                  {currentQuestion.content}
-                </p>
-              )}
+              <MathContent 
+                className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                content={currentQuestion.content} 
+              />
             </div>
 
             {/* Answer Options Selector */}
@@ -716,8 +931,9 @@ export default function ExamTaker() {
               {/* 1. Multiple Choice */}
               {currentQuestion.type === 'trac_nghiem' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {(currentQuestion.shuffledOptions || []).map((opt) => {
+                  {(currentQuestion.shuffledOptions || []).map((opt, optIdx) => {
                     const isSelected = answers[currentQuestion.id] === opt.key;
+                    const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
                     return (
                       <button
                         key={opt.key}
@@ -733,14 +949,10 @@ export default function ExamTaker() {
                             ? 'bg-indigo-600 border-indigo-650 text-white' 
                             : 'bg-slate-100 border-slate-200 text-slate-500'
                         }`}>
-                          {opt.key}
+                          {displayLabel}
                         </span>
                         <span className="flex-1">
-                          {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                            <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                          ) : (
-                            opt.text
-                          )}
+                          <MathContent content={opt.text} isInline={true} />
                         </span>
                       </button>
                     );
@@ -751,20 +963,17 @@ export default function ExamTaker() {
               {/* 2. True/False */}
               {currentQuestion.type === 'dung_sai' && (
                 <div className="space-y-3">
-                  {(currentQuestion.metadata?.options || []).map((opt: any) => {
+                  {(currentQuestion.shuffledOptions || currentQuestion.metadata?.options || []).map((opt: any, optIdx: number) => {
                     const studentVal = answers[currentQuestion.id]?.[opt.key]; // 'Đ' or 'S' or undefined
+                    const displayLabel = String.fromCharCode(97 + optIdx); // a, b, c, d...
                     return (
                       <div key={opt.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-slate-200 bg-white rounded-2xl gap-3">
                         <div className="flex items-start gap-2.5">
                           <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px] text-slate-500">
-                            {opt.key}
+                            {displayLabel}
                           </span>
                           <span className="text-slate-700 text-xs sm:text-sm">
-                            {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                            ) : (
-                              opt.text
-                            )}
+                            <MathContent content={opt.text} isInline={true} />
                           </span>
                         </div>
                         <div className="flex gap-2 shrink-0">
@@ -772,7 +981,7 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'Đ')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'Đ'
-                                ? 'bg-indigo-600 border-indigo-650 text-white shadow-xs'
+                                ? 'bg-indigo-600 border-indigo-655 text-white shadow-xs'
                                 : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
                             }`}
                           >
@@ -782,8 +991,8 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'S')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'S'
-                                ? 'bg-amber-600 border-amber-650 text-white shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-650'
+                                ? 'bg-amber-600 border-amber-655 text-white shadow-xs'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
                             }`}
                           >
                             Sai
@@ -819,11 +1028,7 @@ export default function ExamTaker() {
                         {(currentQuestion.metadata?.left_options || []).map((l: any) => (
                           <p key={l.key} className="leading-snug">
                             <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                            {/<[a-z][\s\S]*>/i.test(l.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: l.text }} />
-                            ) : (
-                              l.text
-                            )}
+                            <MathContent content={l.text} isInline={true} />
                           </p>
                         ))}
                       </div>
@@ -831,14 +1036,10 @@ export default function ExamTaker() {
                     <div className="space-y-2">
                       <p className="font-extrabold text-slate-450 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
                       <div className="space-y-1 text-xs">
-                        {(currentQuestion.metadata?.right_options || []).map((r: any) => (
+                        {(currentQuestion.shuffledRightOptions || currentQuestion.metadata?.right_options || []).map((r: any) => (
                           <p key={r.key} className="leading-snug">
                             <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                            {/<[a-z][\s\S]*>/i.test(r.text) ? (
-                              <span dangerouslySetInnerHTML={{ __html: r.text }} />
-                            ) : (
-                              r.text
-                            )}
+                            <MathContent content={r.text} isInline={true} />
                           </p>
                         ))}
                       </div>
@@ -874,7 +1075,7 @@ export default function ExamTaker() {
               {/* 5. Reading Comprehension (Ngữ liệu) */}
               {currentQuestion.type === 'ngu_lieu' && (
                 <div className="space-y-6 pl-4 border-l-2 border-indigo-200">
-                  {(currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
+                  {(currentQuestion.shuffledSubQuestions || currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
                     const studentAns = answers[currentQuestion.id]?.[sub.id] || '';
                     return (
                       <div key={sub.id || subIdx} className="space-y-3 bg-white p-4 border border-slate-200 rounded-2xl">
@@ -883,20 +1084,15 @@ export default function ExamTaker() {
                             {sub.title || `Câu hỏi ${subIdx + 1}`}
                           </span>
                         </div>
-                        {/<[a-z][\s\S]*>/i.test(sub.content) ? (
-                          <div 
-                            className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
-                            dangerouslySetInnerHTML={{ __html: sub.content }}
-                          />
-                        ) : (
-                          <p className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed whitespace-pre-line my-0">
-                            {sub.content}
-                          </p>
-                        )}
+                        <MathContent 
+                          className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                          content={sub.content}
+                        />
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {(sub.options || []).map((opt: any) => {
+                          {(sub.shuffledOptions || sub.options || []).map((opt: any, optIdx: number) => {
                             const isSelected = studentAns === opt.key;
+                            const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
                             return (
                               <button
                                 key={opt.key}
@@ -923,14 +1119,10 @@ export default function ExamTaker() {
                                     ? 'bg-indigo-600 border-indigo-650 text-white' 
                                     : 'bg-slate-100 border-slate-200 text-slate-400'
                                 }`}>
-                                  {opt.key}
+                                  {displayLabel}
                                 </span>
                                 <span className="flex-1">
-                                  {/<[a-z][\s\S]*>/i.test(opt.text) ? (
-                                    <span dangerouslySetInnerHTML={{ __html: opt.text }} />
-                                  ) : (
-                                    opt.text
-                                  )}
+                                  <MathContent content={opt.text} isInline={true} />
                                 </span>
                               </button>
                             );
@@ -944,24 +1136,24 @@ export default function ExamTaker() {
             </div>
           </div>
 
-          {/* Previous/Next Navigation Controls */}
-          <div className="flex items-center justify-between border-t border-slate-200/80 pt-5 mt-8 shrink-0">
+          {/* Sticky Bottom Navigation Controls */}
+          <div className="bg-white border-t border-slate-200 p-4 sm:px-6 flex items-center justify-between shrink-0 shadow-md z-10">
             <button
               onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))}
               disabled={currentIdx === 0}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-4.5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Câu trước</span>
             </button>
 
             <button
               onClick={() => setCurrentIdx(prev => Math.min(questions.length - 1, prev + 1))}
               disabled={currentIdx === questions.length - 1}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-indigo-100"
             >
               <span>Câu tiếp theo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
