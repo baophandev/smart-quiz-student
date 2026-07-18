@@ -8,6 +8,8 @@ interface UserProfile {
   email: string;
   credits: number;
   is_premium: boolean;
+  is_disabled?: boolean;
+  disabled_at?: string;
 }
 
 interface AuthContextType {
@@ -52,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('role, full_name, email, credits, is_premium')
+        .select('role, full_name, email, credits, is_premium, is_disabled, disabled_at')
         .eq('id', user.id)
         .single();
 
