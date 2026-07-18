@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Clock, ArrowLeft, ArrowRight, CheckSquare, Loader2, 
+  Clock, ArrowLeft, CheckSquare, Loader2, 
   AlertCircle, CheckCircle, Trophy
 } from 'lucide-react';
 
@@ -96,6 +96,14 @@ export default function ExamTaker() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
+
+  const scrollToQuestion = (idx: number) => {
+    setCurrentIdx(idx);
+    const element = document.getElementById(`q-container-${idx}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
   
   // New result modal states
   const [duration, setDuration] = useState<number>(45);
@@ -840,7 +848,7 @@ export default function ExamTaker() {
     );
   }
 
-  const currentQuestion = questions[currentIdx];
+
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none relative">
@@ -896,265 +904,266 @@ export default function ExamTaker() {
         {/* Left Side: Question Board */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Scrollable Question Content */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            {/* Index card */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <span className="text-xs font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                  Câu hỏi {currentIdx + 1} / {questions.length}
-                </span>
-                
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                  {currentQuestion.type === 'trac_nghiem' 
-                    ? 'Trắc nghiệm' 
-                    : currentQuestion.type === 'dung_sai' 
-                    ? 'Đúng/Sai' 
-                    : currentQuestion.type === 'tra_loi_ngan' 
-                    ? 'Trả lời ngắn' 
-                    : currentQuestion.type === 'noi_cau' 
-                    ? 'Nối câu' 
-                    : 'Ngữ liệu / Đọc hiểu'}
-                </span>
-              </div>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-slate-50/50">
+            {questions.map((q, idx) => {
+              const isFocused = idx === currentIdx;
+              return (
+                <div 
+                  key={q.id}
+                  id={`q-container-${idx}`}
+                  onClick={() => setCurrentIdx(idx)}
+                  className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs space-y-5 transition-all duration-300 ${
+                    isFocused 
+                      ? 'border-indigo-500 ring-4 ring-indigo-500/5' 
+                      : 'border-slate-200/80 hover:border-slate-350'
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-xs font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                      Câu hỏi {idx + 1} / {questions.length}
+                    </span>
+                    
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                      {q.type === 'trac_nghiem' 
+                        ? 'Trắc nghiệm' 
+                        : q.type === 'dung_sai' 
+                        ? 'Đúng/Sai' 
+                        : q.type === 'tra_loi_ngan' 
+                        ? 'Trả lời ngắn' 
+                        : q.type === 'noi_cau' 
+                        ? 'Nối câu' 
+                        : 'Ngữ liệu / Đọc hiểu'}
+                    </span>
+                  </div>
 
-              {/* Question Text */}
-              <MathContent 
-                className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
-                content={currentQuestion.content} 
-              />
-            </div>
-
-            {/* Answer Options Selector */}
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Nhập/Chọn câu trả lời của bạn:</p>
-
-              {/* 1. Multiple Choice */}
-              {currentQuestion.type === 'trac_nghiem' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {(currentQuestion.shuffledOptions || []).map((opt, optIdx) => {
-                    const isSelected = answers[currentQuestion.id] === opt.key;
-                    const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
-                    return (
-                      <button
-                        key={opt.key}
-                        onClick={() => handleSelectTracNghiem(currentQuestion.id, opt.key)}
-                        className={`flex items-start text-left gap-3 p-4 border rounded-2xl text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
-                          isSelected
-                            ? 'border-indigo-500 bg-indigo-50/30 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
-                            : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 hover:bg-slate-50/50'
-                        }`}
-                      >
-                        <span className={`font-extrabold tracking-wider shrink-0 px-2 py-0.5 rounded-md text-[10px] border transition-colors ${
-                          isSelected 
-                            ? 'bg-indigo-600 border-indigo-600 text-white' 
-                            : 'bg-slate-100 border-slate-200 text-slate-500'
-                        }`}>
-                          {displayLabel}
-                        </span>
-                        <span className="flex-1">
-                          <MathContent content={opt.text} isInline={true} />
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* 2. True/False */}
-              {currentQuestion.type === 'dung_sai' && (
-                <div className="space-y-3">
-                  {(currentQuestion.shuffledOptions || currentQuestion.metadata?.options || []).map((opt: any, optIdx: number) => {
-                    const studentVal = answers[currentQuestion.id]?.[opt.key]; // 'Đ' or 'S' or undefined
-                    const displayLabel = String.fromCharCode(97 + optIdx); // a, b, c, d...
-                    return (
-                      <div key={opt.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-slate-200 bg-white rounded-2xl gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px] text-slate-500">
-                            {displayLabel}
-                          </span>
-                          <span className="text-slate-700 text-xs sm:text-sm">
-                            <MathContent content={opt.text} isInline={true} />
-                          </span>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'Đ')}
-                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
-                              studentVal === 'Đ'
-                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            Đúng
-                          </button>
-                          <button
-                            onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'S')}
-                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
-                              studentVal === 'S'
-                                ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            Sai
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* 3. Short Answer */}
-              {currentQuestion.type === 'tra_loi_ngan' && (
-                <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-2xs">
-                  <textarea
-                    rows={3}
-                    placeholder="Điền đáp án của câu hỏi tại đây..."
-                    value={answers[currentQuestion.id] || ''}
-                    onChange={(e) => handleTextChange(currentQuestion.id, e.target.value)}
-                    className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white placeholder:text-slate-400"
+                  {/* Question Text */}
+                  <MathContent 
+                    className="text-sm sm:text-base font-semibold text-slate-800 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2" 
+                    content={q.content} 
                   />
-                </div>
-              )}
 
-              {/* 4. Matching */}
-              {currentQuestion.type === 'noi_cau' && (
-                <div className="space-y-4">
-                  {/* Visual options */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white border border-slate-200 rounded-2xl">
-                    <div className="space-y-2">
-                      <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế trái (L)</p>
-                      <div className="space-y-1 text-xs">
-                        {(currentQuestion.metadata?.left_options || []).map((l: any) => (
-                          <p key={l.key} className="leading-snug">
-                            <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                            <MathContent content={l.text} isInline={true} />
-                          </p>
-                        ))}
+                  {/* Divider and Answer Options */}
+                  <div className="border-t border-slate-100 pt-4 space-y-3">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Nhập/Chọn câu trả lời của bạn:</p>
+
+                    {/* 1. Multiple Choice */}
+                    {q.type === 'trac_nghiem' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {(q.shuffledOptions || []).map((opt, optIdx) => {
+                          const isSelected = answers[q.id] === opt.key;
+                          const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
+                          return (
+                            <button
+                              key={opt.key}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectTracNghiem(q.id, opt.key);
+                              }}
+                              className={`flex items-start text-left gap-3 p-4 border rounded-2xl text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                                isSelected
+                                  ? 'border-indigo-500 bg-indigo-50/30 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
+                                  : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700 hover:bg-slate-50/50'
+                              }`}
+                            >
+                              <span className={`font-extrabold tracking-wider shrink-0 px-2 py-0.5 rounded-md text-[10px] border transition-colors ${
+                                isSelected 
+                                  ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                  : 'bg-slate-100 border-slate-200 text-slate-500'
+                              }`}>
+                                {displayLabel}
+                              </span>
+                              <span className="flex-1">
+                                <MathContent content={opt.text} isInline={true} />
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
-                      <div className="space-y-1 text-xs">
-                        {(currentQuestion.shuffledRightOptions || currentQuestion.metadata?.right_options || []).map((r: any) => (
-                          <p key={r.key} className="leading-snug">
-                            <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                            <MathContent content={r.text} isInline={true} />
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                    )}
 
-                  {/* Matching Dropdowns */}
-                  <div className="space-y-2 text-xs">
-                    <p className="font-bold text-slate-500">Kết nối các cặp vế tương ứng:</p>
-                    {(currentQuestion.metadata?.left_options || []).map((l: any) => {
-                      const selectedRightVal = answers[currentQuestion.id]?.[l.key] || '';
-                      return (
-                        <div key={l.key} className="flex items-center gap-3 bg-white p-2.5 border border-slate-200 rounded-xl">
-                          <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{l.key}</span>
-                          <span className="text-slate-400">ghép nối với:</span>
-                          <select
-                            value={selectedRightVal}
-                            onChange={(e) => handleSelectNoiCau(currentQuestion.id, l.key, e.target.value)}
-                            className="px-2.5 py-1 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none bg-white cursor-pointer"
-                          >
-                            <option value="">-- Chọn vế phải (R) --</option>
-                            {(currentQuestion.metadata?.right_options || []).map((r: any) => (
-                              <option key={r.key} value={r.key}>Vế {r.key}</option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* 5. Reading Comprehension (Ngữ liệu) */}
-              {currentQuestion.type === 'ngu_lieu' && (
-                <div className="space-y-6 pl-4 border-l-2 border-indigo-200">
-                  {(currentQuestion.shuffledSubQuestions || currentQuestion.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
-                    const studentAns = answers[currentQuestion.id]?.[sub.id] || '';
-                    return (
-                      <div key={sub.id || subIdx} className="space-y-3 bg-white p-4 border border-slate-200 rounded-2xl">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                          <span className="text-xs font-bold text-slate-800">
-                            {sub.title || `Câu hỏi ${subIdx + 1}`}
-                          </span>
-                        </div>
-                        <MathContent 
-                          className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
-                          content={sub.content}
-                        />
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          {(sub.shuffledOptions || sub.options || []).map((opt: any, optIdx: number) => {
-                            const isSelected = studentAns === opt.key;
-                            const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
-                            return (
-                              <button
-                                key={opt.key}
-                                onClick={() => {
-                                  setAnswers(prev => {
-                                    const prevAns = prev[currentQuestion.id] || {};
-                                    return {
-                                      ...prev,
-                                      [currentQuestion.id]: {
-                                        ...prevAns,
-                                        [sub.id]: opt.key
-                                      }
-                                    };
-                                  });
-                                }}
-                                className={`flex items-start text-left gap-2 px-3 py-2 border rounded-xl text-xs transition-all duration-200 cursor-pointer ${
-                                  isSelected
-                                    ? 'border-indigo-500 bg-indigo-50/20 text-indigo-900 font-semibold ring-1 ring-indigo-500'
-                                    : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600 hover:bg-slate-50/50'
-                                }`}
-                              >
-                                <span className={`font-extrabold shrink-0 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
-                                  isSelected 
-                                    ? 'bg-indigo-600 border-indigo-600 text-white' 
-                                    : 'bg-slate-100 border-slate-200 text-slate-400'
-                                }`}>
+                    {/* 2. True/False */}
+                    {q.type === 'dung_sai' && (
+                      <div className="space-y-3">
+                        {(q.shuffledOptions || q.metadata?.options || []).map((opt: any, optIdx: number) => {
+                          const studentVal = answers[q.id]?.[opt.key]; // 'Đ' or 'S' or undefined
+                          const displayLabel = String.fromCharCode(97 + optIdx); // a, b, c, d...
+                          return (
+                            <div key={opt.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 border border-slate-200 bg-white rounded-2xl gap-3">
+                              <div className="flex items-start gap-2.5">
+                                <span className="font-extrabold tracking-wider shrink-0 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md text-[10px] text-slate-500">
                                   {displayLabel}
                                 </span>
-                                <span className="flex-1">
+                                <span className="text-slate-700 text-xs sm:text-sm">
                                   <MathContent content={opt.text} isInline={true} />
                                 </span>
-                              </button>
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectDungSai(q.id, opt.key, 'Đ');
+                                  }}
+                                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                    studentVal === 'Đ'
+                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  Đúng
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectDungSai(q.id, opt.key, 'S');
+                                  }}
+                                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                    studentVal === 'S'
+                                      ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  Sai
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 3. Short Answer */}
+                    {q.type === 'tra_loi_ngan' && (
+                      <div className="bg-white p-4 border border-slate-200 rounded-2xl shadow-2xs" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          rows={3}
+                          placeholder="Điền đáp án của câu hỏi tại đây..."
+                          value={answers[q.id] || ''}
+                          onChange={(e) => handleTextChange(q.id, e.target.value)}
+                          className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white placeholder:text-slate-400"
+                        />
+                      </div>
+                    )}
+
+                    {/* 4. Matching */}
+                    {q.type === 'noi_cau' && (
+                      <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
+                        {/* Visual options */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white border border-slate-200 rounded-2xl">
+                          <div className="space-y-2">
+                            <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế trái (L)</p>
+                            <div className="space-y-1 text-xs">
+                              {(q.metadata?.left_options || []).map((l: any) => (
+                                <p key={l.key} className="leading-snug">
+                                  <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
+                                  <MathContent content={l.text} isInline={true} />
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
+                            <div className="space-y-1 text-xs">
+                              {(q.shuffledRightOptions || q.metadata?.right_options || []).map((r: any) => (
+                                <p key={r.key} className="leading-snug">
+                                  <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
+                                  <MathContent content={r.text} isInline={true} />
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Matching Dropdowns */}
+                        <div className="space-y-2 text-xs">
+                          <p className="font-bold text-slate-500">Kết nối các cặp vế tương ứng:</p>
+                          {(q.metadata?.left_options || []).map((l: any) => {
+                            const selectedRightVal = answers[q.id]?.[l.key] || '';
+                            return (
+                              <div key={l.key} className="flex items-center gap-3 bg-white p-2.5 border border-slate-200 rounded-xl">
+                                <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{l.key}</span>
+                                <span className="text-slate-400">ghép nối với:</span>
+                                <select
+                                  value={selectedRightVal}
+                                  onChange={(e) => handleSelectNoiCau(q.id, l.key, e.target.value)}
+                                  className="px-2.5 py-1 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none bg-white cursor-pointer"
+                                >
+                                  <option value="">-- Chọn vế phải (R) --</option>
+                                  {(q.metadata?.right_options || []).map((r: any) => (
+                                    <option key={r.key} value={r.key}>Vế {r.key}</option>
+                                  ))}
+                                </select>
+                              </div>
                             );
                           })}
                         </div>
                       </div>
-                    );
-                  })}
+                    )}
+
+                    {/* 5. Reading Comprehension (Ngữ liệu) */}
+                    {q.type === 'ngu_lieu' && (
+                      <div className="space-y-6 pl-4 border-l-2 border-indigo-200" onClick={(e) => e.stopPropagation()}>
+                        {(q.shuffledSubQuestions || q.metadata?.sub_questions || []).map((sub: any, subIdx: number) => {
+                          const studentAns = answers[q.id]?.[sub.id] || '';
+                          return (
+                            <div key={sub.id || subIdx} className="space-y-3 bg-white p-4 border border-slate-200 rounded-2xl">
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                <span className="text-xs font-bold text-slate-800">
+                                  {sub.title || `Câu hỏi ${subIdx + 1}`}
+                                </span>
+                              </div>
+                              <MathContent 
+                                className="text-xs sm:text-sm font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
+                                content={sub.content}
+                              />
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                                {(sub.shuffledOptions || sub.options || []).map((opt: any, optIdx: number) => {
+                                  const isSelected = studentAns === opt.key;
+                                  const displayLabel = String.fromCharCode(65 + optIdx); // A, B, C, D...
+                                  return (
+                                    <button
+                                      key={opt.key}
+                                      onClick={() => {
+                                        setAnswers(prev => {
+                                          const prevAns = prev[q.id] || {};
+                                          return {
+                                            ...prev,
+                                            [q.id]: {
+                                              ...prevAns,
+                                              [sub.id]: opt.key
+                                            }
+                                          };
+                                        });
+                                      }}
+                                      className={`flex items-start text-left gap-2 px-3 py-2 border rounded-xl text-xs transition-all duration-205 cursor-pointer ${
+                                        isSelected
+                                          ? 'border-indigo-500 bg-indigo-50/20 text-indigo-900 font-semibold ring-1 ring-indigo-500'
+                                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600 hover:bg-slate-50/50'
+                                      }`}
+                                    >
+                                      <span className={`font-extrabold shrink-0 px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+                                        isSelected 
+                                          ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                          : 'bg-slate-100 border-slate-200 text-slate-400'
+                                      }`}>
+                                        {displayLabel}
+                                      </span>
+                                      <span className="flex-1">
+                                        <MathContent content={opt.text} isInline={true} />
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Sticky Bottom Navigation Controls */}
-          <div className="bg-white border-t border-slate-200 p-4 sm:px-6 flex items-center justify-between shrink-0 shadow-md z-10">
-            <button
-              onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))}
-              disabled={currentIdx === 0}
-              className="flex items-center gap-1.5 px-4.5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Câu trước</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentIdx(prev => Math.min(questions.length - 1, prev + 1))}
-              disabled={currentIdx === questions.length - 1}
-              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-indigo-100"
-            >
-              <span>Câu tiếp theo</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              );
+            })}
           </div>
         </div>
 
@@ -1178,7 +1187,7 @@ export default function ExamTaker() {
                   return (
                     <button
                       key={q.id}
-                      onClick={() => setCurrentIdx(idx)}
+                      onClick={() => scrollToQuestion(idx)}
                       className={`h-9 w-full flex items-center justify-center border rounded-xl text-xs font-bold transition-all cursor-pointer ${cellStyle}`}
                     >
                       {idx + 1}

@@ -10,11 +10,20 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 function ProtectedRoute() {
   const { user, loading, profile, signOut } = useAuth();
 
+  const isAccountDisabled = !!(profile && (
+    profile.is_disabled ||
+    (profile.disabled_at && new Date(profile.disabled_at) <= new Date())
+  ));
+
   useEffect(() => {
-    if (user && profile && profile.role !== 'student') {
-      signOut();
+    if (user && profile) {
+      if (isAccountDisabled) {
+        signOut();
+      } else if (profile.role !== 'student') {
+        signOut();
+      }
     }
-  }, [user, profile, signOut]);
+  }, [user, profile, signOut, isAccountDisabled]);
 
   if (loading) {
     return (
@@ -36,8 +45,13 @@ function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (profile && profile.role !== 'student') {
-    return <Navigate to="/login" replace state={{ error: 'Tài khoản của bạn không có vai trò Học sinh.' }} />;
+  if (profile) {
+    if (isAccountDisabled) {
+      return <Navigate to="/login" replace state={{ error: 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ giáo viên.' }} />;
+    }
+    if (profile.role !== 'student') {
+      return <Navigate to="/login" replace state={{ error: 'Tài khoản của bạn không có vai trò Học sinh.' }} />;
+    }
   }
 
   return <Outlet />;
