@@ -493,14 +493,14 @@ export default function StudentDashboard() {
                 setConfirmPassword('');
                 setShowChangePasswordModal(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-indigo-50 text-slate-650 hover:text-indigo-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               <Key className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Đổi mật khẩu</span>
             </button>
             <button
               onClick={signOut}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-rose-50 text-slate-650 hover:text-rose-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Đăng xuất</span>
@@ -565,13 +565,13 @@ export default function StudentDashboard() {
                   onClick={() => setSelectedCourseId(c.id)}
                   className={`px-5 py-3 rounded-2xl text-xs font-extrabold transition-all duration-200 text-left border cursor-pointer ${
                     selectedCourseId === c.id
-                      ? 'bg-indigo-650 text-white border-transparent shadow-md shadow-indigo-100 scale-[1.02]'
+                      ? 'bg-indigo-600 text-white border-transparent shadow-md shadow-indigo-100 scale-[1.02]'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
                   <div className="font-extrabold text-sm">{c.name}</div>
                   {c.description && (
-                    <div className={`text-[10px] mt-0.5 font-normal ${selectedCourseId === c.id ? 'text-indigo-200' : 'text-slate-450'}`}>
+                    <div className={`text-[10px] mt-0.5 font-normal ${selectedCourseId === c.id ? 'text-indigo-200' : 'text-slate-400'}`}>
                       {c.description}
                     </div>
                   )}
@@ -659,12 +659,12 @@ export default function StudentDashboard() {
                         </span>
                       )}
                       {ex.credit_cost > 0 ? (
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-250 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs">
                           <span>🪙</span>
                           <span>{ex.credit_cost} Xu</span>
                         </span>
                       ) : (
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-150 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
                           <span>Miễn phí</span>
                         </span>
                       )}
@@ -698,8 +698,8 @@ export default function StudentDashboard() {
                         onClick={() => handleStartExam(ex)}
                         className={`mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md ${
                           hasInProgress
-                            ? 'bg-amber-650 hover:bg-amber-700 text-white'
-                            : 'bg-indigo-650 hover:bg-indigo-700 text-white'
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                         }`}
                       >
                         {hasInProgress ? (
@@ -730,7 +730,7 @@ export default function StudentDashboard() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
-                <BookOpen className="w-12 h-12 text-slate-350 mb-3" />
+                <BookOpen className="w-12 h-12 text-slate-300 mb-3" />
                 <h3 className="text-base font-bold text-slate-800">Chưa có đề thi nào khả dụng</h3>
                 <p className="text-sm text-slate-500 max-w-xs mt-1">
                   Hiện tại giáo viên chưa xuất bản đề thi nào cho khóa học này. Hãy quay lại sau nhé!
@@ -744,7 +744,7 @@ export default function StudentDashboard() {
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-450 uppercase text-[10px] font-bold tracking-wider">
+                    <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-bold tracking-wider">
                       <th className="p-4 pl-6">Mã / Tên Đề Thi</th>
                       <th className="p-4">Thời Gian Hoàn Thành</th>
                       <th className="p-4">Số Câu Đúng</th>
@@ -753,12 +753,12 @@ export default function StudentDashboard() {
                       <th className="p-4 pr-6 text-center">Hành Động</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-650 font-medium">
+                  <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
                     {filteredHistory.map((att) => (
                       <tr key={att.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-4 pl-6">
                           <div className="space-y-1">
-                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-105 border border-slate-200 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
                               {att.exam_id}
                             </span>
                             <span className="block font-semibold text-slate-800 text-xs sm:text-sm">{att.exam?.title || 'Đề thi đã bị xóa'}</span>
@@ -774,7 +774,7 @@ export default function StudentDashboard() {
                             ? `${att.correct_answers_count}/${att.total_questions_count}`
                             : '--'}
                         </td>
-                        <td className="p-4 font-bold text-slate-850">
+                        <td className="p-4 font-bold text-slate-800">
                           {att.status === 'completed'
                             ? <span className={`px-2.5 py-1 rounded-xl text-xs font-black ${
                                 (att.score || 0) >= 8 
@@ -835,7 +835,7 @@ export default function StudentDashboard() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-16 bg-white rounded-3xl border border-slate-200/80 text-center shadow-xs">
-              <History className="w-12 h-12 text-slate-350 mb-3" />
+              <History className="w-12 h-12 text-slate-300 mb-3" />
               <h3 className="text-base font-bold text-slate-800">Chưa có lịch sử làm bài</h3>
               <p className="text-sm text-slate-500 max-w-xs mt-1">
                 Lịch sử thi trắc nghiệm của bạn sẽ hiển thị tại đây sau khi bạn nộp bài làm đầu tiên.
@@ -913,12 +913,12 @@ export default function StudentDashboard() {
                         <div className="flex items-center gap-2">
                           {isCorrect ? (
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-550" />
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                               <span>Đúng (+{score}đ)</span>
                             </span>
                           ) : (
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                              <XCircle className="w-3 h-3 text-rose-550" />
+                              <XCircle className="w-3 h-3 text-rose-500" />
                               <span>Sai (0đ)</span>
                             </span>
                           )}
@@ -951,7 +951,7 @@ export default function StudentDashboard() {
                                   <MathContent content={opt.text} isInline={true} />
                                 </span>
                                 {isSelected && !isCorrectAnswer && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
-                                {isCorrectAnswer && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
+                                {isCorrectAnswer && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
                               </div>
                             );
                           })}
@@ -978,13 +978,13 @@ export default function StudentDashboard() {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3 text-xs shrink-0 self-end sm:self-auto">
-                                  <span className="text-slate-400">Bạn chọn: <strong className={studentChoice === 'Đ' ? 'text-indigo-650' : 'text-amber-600'}>{studentChoice || 'Không trả lời'}</strong></span>
-                                  <span className="text-slate-350">|</span>
+                                  <span className="text-slate-400">Bạn chọn: <strong className={studentChoice === 'Đ' ? 'text-indigo-600' : 'text-amber-600'}>{studentChoice || 'Không trả lời'}</strong></span>
+                                  <span className="text-slate-300">|</span>
                                   <span className="text-slate-500 font-bold">Đáp án: <strong className={correctChoice === 'Đ' ? 'text-emerald-700' : 'text-amber-700'}>{correctChoice}</strong></span>
                                   {isSubCorrect ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-550" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                                   ) : (
-                                    <XCircle className="w-4 h-4 text-rose-550" />
+                                    <XCircle className="w-4 h-4 text-rose-500" />
                                   )}
                                 </div>
                               </div>
@@ -1047,7 +1047,7 @@ export default function StudentDashboard() {
                                   <div key={lKey} className="flex items-center gap-2">
                                     <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{lKey}</span>
                                     <span className="text-slate-400">ghép với</span>
-                                    <span className="font-bold text-indigo-650 bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100">{rKey as string}</span>
+                                    <span className="font-bold text-indigo-600 bg-indigo-50/50 px-1.5 py-0.5 rounded border border-indigo-100">{rKey as string}</span>
                                   </div>
                                 ))
                               )}
@@ -1057,9 +1057,9 @@ export default function StudentDashboard() {
                               <p className="font-bold text-emerald-600 text-[10px] uppercase">Đáp án đúng chính xác:</p>
                               {Object.entries(q.metadata?.correct_answer || {}).map(([lKey, rKey]) => (
                                 <div key={lKey} className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-700 bg-slate-105 px-1.5 py-0.5 rounded border border-slate-200">{lKey}</span>
+                                  <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{lKey}</span>
                                   <span className="text-slate-400">ghép với</span>
-                                  <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150">{rKey as string}</span>
+                                  <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">{rKey as string}</span>
                                 </div>
                               ))}
                             </div>
@@ -1076,7 +1076,7 @@ export default function StudentDashboard() {
 
                             return (
                               <div key={sub.id || subIdx} className={`space-y-3 p-4 border rounded-2xl bg-white ${
-                                isSubCorrect ? 'border-emerald-100 hover:border-emerald-250 bg-emerald-50/5' : 'border-rose-150 hover:border-rose-200 bg-rose-50/5'
+                                isSubCorrect ? 'border-emerald-100 hover:border-emerald-200 bg-emerald-50/5' : 'border-rose-100 hover:border-rose-200 bg-rose-50/5'
                               }`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                                   <span className="font-bold text-slate-800">
@@ -1090,7 +1090,7 @@ export default function StudentDashboard() {
                                 </div>
 
                                 <MathContent 
-                                  className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-350 [&_td]:p-2"
+                                  className="font-semibold text-slate-700 leading-relaxed html-question-content [&_img]:max-w-full [&_img]:h-auto [&_table]:border-collapse [&_table]:my-2 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2"
                                   content={sub.content}
                                 />
 
@@ -1112,7 +1112,7 @@ export default function StudentDashboard() {
                                           <MathContent content={opt.text} isInline={true} />
                                         </span>
                                         {isOptSelected && !isOptCorrect && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
-                                        {isOptCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-550 shrink-0 mt-0.5" />}
+                                        {isOptCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
                                       </div>
                                     );
                                   })}
@@ -1153,7 +1153,7 @@ export default function StudentDashboard() {
             {/* Close Button */}
             <button 
               onClick={() => setShowChangePasswordModal(false)}
-              className="absolute right-5 top-5 p-1.5 rounded-lg text-slate-400 hover:text-slate-650 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="absolute right-5 top-5 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1167,14 +1167,14 @@ export default function StudentDashboard() {
             {/* Feedback Alerts */}
             {pwError && (
               <div className="flex items-start gap-2.5 bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-2xl mb-4 text-xs">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-505 mt-0.5" />
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
                 <span>{pwError}</span>
               </div>
             )}
 
             {pwSuccess && (
               <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 p-3 rounded-2xl mb-4 text-xs">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-505 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500 mt-0.5" />
                 <span>{pwSuccess}</span>
               </div>
             )}
@@ -1195,7 +1195,7 @@ export default function StudentDashboard() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-650 cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showPassword ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -1216,7 +1216,7 @@ export default function StudentDashboard() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-650 cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showConfirmPassword ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
