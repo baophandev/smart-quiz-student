@@ -95,6 +95,7 @@ export default function ExamTaker() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
   
   // New result modal states
   const [duration, setDuration] = useState<number>(45);
@@ -141,7 +142,7 @@ export default function ExamTaker() {
         setError(null);
 
         // A. Start Exam Attempt on DB
-        const { data: attemptId, error: attemptErr } = await supabase.rpc(
+        const { data: attemptIdVal, error: attemptErr } = await supabase.rpc(
           'start_exam_attempt',
           {
             p_exam_id: examId,
@@ -150,6 +151,7 @@ export default function ExamTaker() {
         );
 
         if (attemptErr) throw attemptErr;
+        setAttemptId(attemptIdVal);
 
         // B. Fetch Exam Info
         const { data: examData, error: examErr } = await supabase
@@ -162,11 +164,11 @@ export default function ExamTaker() {
         setExamTitle(examData.title);
         setDuration(examData.duration || 45);
 
-        // C. Fetch Attempt Details to get questions_list
+        // C. Fetch Attempt Details to get questions_list, started_at, and existing draft answers
         const { data: attemptData, error: attemptFetchErr } = await supabase
           .from('exam_attempts')
-          .select('questions_list')
-          .eq('id', attemptId)
+          .select('questions_list, started_at, answers')
+          .eq('id', attemptIdVal)
           .single();
 
         if (attemptFetchErr) throw attemptFetchErr;
@@ -264,30 +266,98 @@ export default function ExamTaker() {
 
         setQuestions(questionsData as Question[]);
 
-        // D. Setup Countdown Timer (LocalStorage check for Anti-F5)
-        const storageTimeKey = `exam_time_left_${examId}_${user.id}`;
-        const savedTimeLeft = localStorage.getItem(storageTimeKey);
-        
-        if (savedTimeLeft !== null) {
-          const parsed = parseInt(savedTimeLeft, 10);
-          setTimeLeft(parsed > 0 ? parsed : 0);
-        } else {
-          // Duration in minutes converted to seconds
-          const durationSeconds = (examData.duration || 45) * 60;
-          setTimeLeft(durationSeconds);
-          localStorage.setItem(storageTimeKey, durationSeconds.toString());
+        // Setup Countdown Timer based on DB started_at (server-authoritative to prevent cheating & support resume)
+        const startedTime = new Date(attemptData.started_at).getTime();
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - startedTime) / 1000);
+        const totalDurationSeconds = (examData.duration || 45) * 60;
+        const actualTimeLeft = totalDurationSeconds - elapsedSeconds;
+
+        // Load existing answers (merge DB and local storage)
+        const initialAnswers: Record<string, any> = {};
+        if (attemptData?.answers && Array.isArray(attemptData.answers)) {
+          attemptData.answers.forEach((ans: any) => {
+            if (ans && ans.question_id) {
+              initialAnswers[ans.question_id] = ans.selected_answer;
+            }
+          });
         }
 
-        // E. Fetch in_progress answers from LocalStorage if any
         const storageAnswersKey = `exam_answers_${examId}_${user.id}`;
         const savedAnswers = localStorage.getItem(storageAnswersKey);
+        let mergedAnswers = { ...initialAnswers };
         if (savedAnswers) {
           try {
-            setAnswers(JSON.parse(savedAnswers));
+            const parsedSaved = JSON.parse(savedAnswers);
+            mergedAnswers = { ...mergedAnswers, ...parsedSaved };
           } catch (e) {
-            console.error('Lỗi phân tích cú pháp câu trả lời nháp:', e);
+            console.error('Lỗi phân tích cú pháp câu trả lời nháp từ LocalStorage:', e);
           }
         }
+        setAnswers(mergedAnswers);
+
+        if (actualTimeLeft <= 0) {
+          // If time has expired while away, immediately auto-submit and show result
+          setError('Hết giờ làm bài! Hệ thống đang tự động nộp bài thi...');
+          
+          const payload = questionsData.map((q: any) => {
+            const selected = mergedAnswers[q.id];
+            return {
+              question_id: q.id,
+              selected_answer: selected !== undefined ? selected : null
+            };
+          });
+
+          const { data: finalAttemptId, error: submitErr } = await supabase.rpc(
+            'submit_and_score_exam',
+            {
+              p_exam_id: examId,
+              p_student_id: user.id,
+              p_answers: payload
+            }
+          );
+
+          if (submitErr) throw submitErr;
+
+          // Clean local storage
+          localStorage.removeItem(`exam_time_left_${examId}_${user.id}`);
+          localStorage.removeItem(storageAnswersKey);
+
+          let score = 0;
+          let correctAnswersCount = 0;
+          let totalQuestionsCount = questionsData.length;
+
+          if (finalAttemptId) {
+            const { data: finalData, error: fetchErr } = await supabase
+              .from('exam_attempts')
+              .select('score, correct_answers_count, total_questions_count')
+              .eq('id', finalAttemptId)
+              .single();
+
+            if (!fetchErr && finalData) {
+              score = finalData.score;
+              correctAnswersCount = finalData.correct_answers_count;
+              totalQuestionsCount = finalData.total_questions_count;
+            }
+          }
+
+          setResultData({
+            score,
+            correctAnswersCount,
+            totalQuestionsCount,
+            timeSpentStr: `${examData.duration || 45} phút 0 giây (Hết giờ)`,
+            isManual: false
+          });
+          setShowResultModal(true);
+          setLoading(false);
+          return;
+        }
+
+        // Set remaining timer
+        setTimeLeft(actualTimeLeft);
+        const storageTimeKey = `exam_time_left_${examId}_${user.id}`;
+        localStorage.setItem(storageTimeKey, actualTimeLeft.toString());
+
       } catch (err: any) {
         console.error('Lỗi khi bắt đầu làm đề thi:', err);
         setError(err.message || 'Không thể tải đề thi này hoặc có lỗi phân quyền.');
@@ -323,12 +393,31 @@ export default function ExamTaker() {
     };
   }, [loading, timeLeft, submitting]);
 
-  // 3. Save answers to LocalStorage whenever they change
+  // 3. Save answers to LocalStorage and Database in real-time (with 1s debounce)
   useEffect(() => {
-    if (Object.keys(answers).length === 0 || !user || !examId) return;
+    if (!user || !examId || !attemptId) return;
+
     const storageAnswersKey = `exam_answers_${examId}_${user.id}`;
     localStorage.setItem(storageAnswersKey, JSON.stringify(answers));
-  }, [answers, examId, user]);
+
+    const payload = Object.keys(answers).map(qId => ({
+      question_id: qId,
+      selected_answer: answers[qId]
+    }));
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        await supabase
+          .from('exam_attempts')
+          .update({ answers: payload })
+          .eq('id', attemptId);
+      } catch (err) {
+        console.error('Error saving answers draft to DB:', err);
+      }
+    }, 1000);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [answers, examId, user, attemptId]);
 
   // 4. Anti-copy / Anti-cheat protections
   useEffect(() => {

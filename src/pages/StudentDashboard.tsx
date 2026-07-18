@@ -102,6 +102,7 @@ interface Attempt {
 export default function StudentDashboard() {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const autoSubmittedAttemptIds = useRef<Set<string>>(new Set());
 
   const [exams, setExams] = useState<Exam[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
@@ -281,6 +282,45 @@ export default function StudentDashboard() {
       }));
       
       setAttempts(mappedAttempts as Attempt[]);
+
+      // Check for expired in_progress attempts
+      const expiredAttempts = mappedAttempts.filter((att: any) => {
+        if (att.status !== 'in_progress') return false;
+        const startedTime = new Date(att.started_at).getTime();
+        const durationMinutes = att.exam?.duration || 45;
+        const totalDurationSeconds = durationMinutes * 60;
+        const elapsedSeconds = Math.floor((Date.now() - startedTime) / 1000);
+        // Expired if elapsed time is greater than duration + 30s grace period
+        return elapsedSeconds >= (totalDurationSeconds + 30);
+      });
+
+      const toSubmit = expiredAttempts.filter((att: any) => !autoSubmittedAttemptIds.current.has(att.id));
+      if (toSubmit.length > 0) {
+        toSubmit.forEach((att: any) => autoSubmittedAttemptIds.current.add(att.id));
+        await Promise.all(toSubmit.map(async (att: any) => {
+          try {
+            // Map draft answers
+            const payload = Array.isArray(att.answers)
+              ? att.answers.map((a: any) => ({
+                  question_id: a.question_id,
+                  selected_answer: a.selected_answer !== undefined ? a.selected_answer : null
+                }))
+              : [];
+            
+            await supabase.rpc('submit_and_score_exam', {
+              p_exam_id: att.exam_id,
+              p_student_id: user.id,
+              p_answers: payload
+            });
+          } catch (e) {
+            console.error('Lỗi tự động nộp bài thi hết hạn:', e);
+          }
+        }));
+        
+        // Re-fetch dashboard data to show the updated completed states
+        fetchDashboardData();
+        return;
+      }
     } catch (err: any) {
       console.error('Lỗi tải dữ liệu học tập:', err);
       setError('Không thể kết nối cơ sở dữ liệu để tải thông tin.');
@@ -651,13 +691,31 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleStartExam(ex)}
-                    className="mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md"
-                  >
-                    <span>Làm bài ngay</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  {(() => {
+                    const hasInProgress = attempts.some(a => a.exam_id === ex.id && a.status === 'in_progress');
+                    return (
+                      <button
+                        onClick={() => handleStartExam(ex)}
+                        className={`mt-6 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs hover:shadow-md ${
+                          hasInProgress
+                            ? 'bg-amber-650 hover:bg-amber-700 text-white'
+                            : 'bg-indigo-650 hover:bg-indigo-700 text-white'
+                        }`}
+                      >
+                        {hasInProgress ? (
+                          <>
+                            <span>Tiếp tục làm bài</span>
+                            <Clock className="w-3.5 h-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            <span>Làm bài ngay</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -741,13 +799,31 @@ export default function StudentDashboard() {
                           )}
                         </td>
                         <td className="p-4 pr-6 text-center">
-                          {att.status === 'completed' && (
+                          {att.status === 'completed' ? (
                             <button
                               onClick={() => handleOpenReview(att)}
                               className="inline-flex items-center justify-center gap-1 px-3 py-1.5 border border-indigo-100 hover:bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
                             >
                               <Eye className="w-3.5 h-3.5" />
                               <span>Xem lại bài</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                const examObj: Exam = {
+                                  id: att.exam_id,
+                                  title: att.exam?.title || '',
+                                  duration: att.exam?.duration || 45,
+                                  questionsCount: att.total_questions_count || 0,
+                                  createdAt: '',
+                                  credit_cost: 0
+                                };
+                                handleStartExam(examObj);
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-3 py-1.5 border border-amber-100 hover:bg-amber-50 text-amber-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Tiếp tục làm</span>
                             </button>
                           )}
                         </td>
