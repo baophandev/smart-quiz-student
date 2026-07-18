@@ -894,8 +894,9 @@ export default function ExamTaker() {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         
         {/* Left Side: Question Board */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 flex flex-col justify-between">
-          <div className="space-y-6">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Scrollable Question Content */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {/* Index card */}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
@@ -980,7 +981,7 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'Đ')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'Đ'
-                                ? 'bg-indigo-600 border-indigo-650 text-white shadow-xs'
+                                ? 'bg-indigo-600 border-indigo-655 text-white shadow-xs'
                                 : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
                             }`}
                           >
@@ -990,7 +991,7 @@ export default function ExamTaker() {
                             onClick={() => handleSelectDungSai(currentQuestion.id, opt.key, 'S')}
                             className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                               studentVal === 'S'
-                                ? 'bg-amber-600 border-amber-650 text-white shadow-xs'
+                                ? 'bg-amber-600 border-amber-655 text-white shadow-xs'
                                 : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-655'
                             }`}
                           >
@@ -1135,24 +1136,24 @@ export default function ExamTaker() {
             </div>
           </div>
 
-          {/* Previous/Next Navigation Controls */}
-          <div className="flex items-center justify-between border-t border-slate-200/80 pt-5 mt-8 shrink-0">
+          {/* Sticky Bottom Navigation Controls */}
+          <div className="bg-white border-t border-slate-200 p-4 sm:px-6 flex items-center justify-between shrink-0 shadow-md z-10">
             <button
               onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))}
               disabled={currentIdx === 0}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-4.5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Câu trước</span>
             </button>
 
             <button
               onClick={() => setCurrentIdx(prev => Math.min(questions.length - 1, prev + 1))}
               disabled={currentIdx === questions.length - 1}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-indigo-100"
             >
               <span>Câu tiếp theo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
