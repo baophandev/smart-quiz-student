@@ -15,18 +15,117 @@ interface MathContentProps {
 
 const autoWrapLaTeX = (text: string): string => {
   if (!text) return '';
-  const regex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\[a-zA-Z]+(?:\s*\[[^\]]*\])?(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})*(?:\s*[_^](?:[a-zA-Z0-9]+|\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}))*)/g;
-  return text.replace(regex, (match) => {
-    if (
-      match.startsWith('$$') || 
-      match.startsWith('$') || 
-      match.startsWith('\\[') || 
-      match.startsWith('\\(')
-    ) {
-      return match;
+
+  const extractBraceGroup = (t: string, start: number): string | null => {
+    if (t[start] !== '{') return null;
+    let depth = 0, i = start;
+    while (i < t.length) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}') { depth--; if (depth === 0) return t.substring(start, i + 1); }
+      else if (t[i] === '\\') i++;
+      i++;
     }
-    return `$${match}$`;
-  });
+    return t.substring(start, i);
+  };
+
+  const extractBracketGroup = (t: string, start: number): string | null => {
+    if (t[start] !== '[') return null;
+    let depth = 0, i = start;
+    while (i < t.length) {
+      if (t[i] === '[') depth++;
+      else if (t[i] === ']') { depth--; if (depth === 0) return t.substring(start, i + 1); }
+      i++;
+    }
+    return null;
+  };
+
+  const extractLatexExpression = (t: string, start: number): string => {
+    let i = start, expression = '';
+    while (i < t.length) {
+      if (t[i] === '\\' && i + 1 < t.length && /[a-zA-Z]/.test(t[i + 1])) {
+        let cmd = '\\'; i++;
+        while (i < t.length && /[a-zA-Z]/.test(t[i])) { cmd += t[i]; i++; }
+        expression += cmd;
+        while (i < t.length && t[i] === ' ') { expression += t[i]; i++; }
+        continue;
+      }
+      if (t[i] === '{') {
+        const g = extractBraceGroup(t, i);
+        if (g) { expression += g; i += g.length; continue; } else break;
+      }
+      if (t[i] === '[') {
+        const g = extractBracketGroup(t, i);
+        if (g) { expression += g; i += g.length; continue; } else break;
+      }
+      if (t[i] === '_' || t[i] === '^') {
+        expression += t[i]; i++;
+        if (i < t.length) {
+          if (t[i] === '{') {
+            const g = extractBraceGroup(t, i);
+            if (g) { expression += g; i += g.length; }
+          } else if (t[i] === '\\' && i + 1 < t.length && /[a-zA-Z]/.test(t[i + 1])) {
+            continue;
+          } else { expression += t[i]; i++; }
+        }
+        continue;
+      }
+      break;
+    }
+    return expression;
+  };
+
+  // Auto-close unbalanced braces (mammoth sometimes outputs incomplete LaTeX)
+  const balanceBraces = (expr: string): string => {
+    let depth = 0;
+    for (let j = 0; j < expr.length; j++) {
+      if (expr[j] === '\\') { j++; continue; }
+      if (expr[j] === '{') depth++;
+      else if (expr[j] === '}') depth--;
+    }
+    if (depth > 0) expr += '}'.repeat(depth);
+    return expr;
+  };
+
+  const wrapLatexInText = (segment: string): string => {
+    if (!segment) return '';
+    let result = '', i = 0;
+    while (i < segment.length) {
+      if (segment[i] === '$' && segment[i + 1] === '$') {
+        const c = segment.indexOf('$$', i + 2);
+        if (c !== -1) { result += segment.substring(i, c + 2); i = c + 2; } else { result += segment.substring(i); break; }
+        continue;
+      }
+      if (segment[i] === '$') {
+        const c = segment.indexOf('$', i + 1);
+        if (c !== -1) { result += segment.substring(i, c + 1); i = c + 1; } else { result += segment.substring(i); break; }
+        continue;
+      }
+      if (segment[i] === '\\' && i + 1 < segment.length && /[a-zA-Z]/.test(segment[i + 1])) {
+        const s = i;
+        const expr = extractLatexExpression(segment, i);
+        if (expr.length > 0) { result += '$' + balanceBraces(expr) + '$'; i = s + expr.length; } else { result += segment[i]; i++; }
+        continue;
+      }
+      result += segment[i]; i++;
+    }
+    return result;
+  };
+
+  // Process only text nodes (skip HTML tags)
+  const parts: { type: 'tag' | 'text'; value: string }[] = [];
+  let idx = 0;
+  while (idx < text.length) {
+    if (text[idx] === '<') {
+      const tagEnd = text.indexOf('>', idx);
+      if (tagEnd === -1) { parts.push({ type: 'text', value: text.substring(idx) }); break; }
+      parts.push({ type: 'tag', value: text.substring(idx, tagEnd + 1) }); idx = tagEnd + 1;
+    } else {
+      const nextTag = text.indexOf('<', idx);
+      if (nextTag === -1) { parts.push({ type: 'text', value: text.substring(idx) }); break; }
+      parts.push({ type: 'text', value: text.substring(idx, nextTag) }); idx = nextTag;
+    }
+  }
+  return parts.map(p => p.type === 'tag' ? p.value : wrapLatexInText(p.value)).join('');
 };
 
 const MathContent: React.FC<MathContentProps> = React.memo(({ content, className, isInline = false }) => {
