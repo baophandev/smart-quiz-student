@@ -373,6 +373,7 @@ export default function StudentDashboard() {
             selected: studentAnsObj ? studentAnsObj.selected_answer : null,
             isCorrect: studentAnsObj ? studentAnsObj.is_correct : false,
             score: studentAnsObj ? studentAnsObj.score : 0,
+            maxScore: item.score || 0.2
           };
         })
         .filter(Boolean);
@@ -887,12 +888,21 @@ export default function StudentDashboard() {
               ) : (
                 reviewQuestions.map((q, idx) => {
                   const isCorrect = q.isCorrect;
-                  const score = q.score;
+                  const score = q.score || 0;
+                  const maxScore = q.maxScore || 0;
+                  const isPartiallyCorrect = score > 0 && score < maxScore;
+
+                  let borderStyle = 'border-slate-100 hover:border-slate-200';
+                  if (score === maxScore || isCorrect) {
+                    borderStyle = 'border-emerald-100 hover:border-emerald-200';
+                  } else if (isPartiallyCorrect) {
+                    borderStyle = 'border-amber-100 hover:border-amber-200';
+                  } else if (score === 0) {
+                    borderStyle = 'border-rose-100 hover:border-rose-200';
+                  }
 
                   return (
-                    <div key={q.id || idx} className={`bg-white border rounded-2xl p-5 shadow-2xs space-y-4 relative ${
-                      isCorrect ? 'border-emerald-100 hover:border-emerald-200' : 'border-rose-100 hover:border-rose-200'
-                    }`}>
+                    <div key={q.id || idx} className={`bg-white border rounded-2xl p-5 shadow-2xs space-y-4 relative ${borderStyle}`}>
                       {/* Question Index & Status Badge */}
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                         <div className="flex items-center gap-2">
@@ -911,10 +921,15 @@ export default function StudentDashboard() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {isCorrect ? (
+                          {(score === maxScore || isCorrect) ? (
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                               <span>Đúng (+{score}đ)</span>
+                            </span>
+                          ) : isPartiallyCorrect ? (
+                            <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-amber-500" />
+                              <span>Đúng một phần (+{score}đ)</span>
                             </span>
                           ) : (
                             <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -1010,32 +1025,6 @@ export default function StudentDashboard() {
 
                       {q.type === 'noi_cau' && (
                         <div className="space-y-3 mt-2 text-xs">
-                          {/* Options definitions */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-slate-50/50 rounded-xl">
-                            <div>
-                              <p className="font-bold text-slate-500 mb-1 text-[10px] uppercase">Vế trái (L)</p>
-                              <div className="space-y-1">
-                                {(q.metadata?.left_options || []).map((l: any) => (
-                                  <p key={l.key} className="leading-snug">
-                                    <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                                    <MathContent content={l.text} isInline={true} />
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-500 mb-1 text-[10px] uppercase">Vế phải (R)</p>
-                              <div className="space-y-1">
-                                {(q.metadata?.right_options || []).map((r: any) => (
-                                  <p key={r.key} className="leading-snug">
-                                    <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                                    <MathContent content={r.text} isInline={true} />
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
                           {/* Matching answers comparison */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="p-3 border border-slate-200 rounded-xl bg-white space-y-1.5">

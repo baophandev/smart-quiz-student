@@ -1146,32 +1146,6 @@ export default function ExamTaker() {
                     {/* 4. Matching */}
                     {q.type === 'noi_cau' && (
                       <div className="space-y-4" onClick={(e) => e.stopPropagation()}>
-                        {/* Visual options */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white border border-slate-200 rounded-2xl">
-                          <div className="space-y-2">
-                            <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế trái (L)</p>
-                            <div className="space-y-1 text-xs">
-                              {(q.metadata?.left_options || []).map((l: any) => (
-                                <p key={l.key} className="leading-snug">
-                                  <span className="font-bold text-slate-700 mr-1">{l.key}.</span>
-                                  <MathContent content={l.text} isInline={true} />
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider border-b border-slate-100 pb-1">Vế phải (R)</p>
-                            <div className="space-y-1 text-xs">
-                              {(q.shuffledRightOptions || q.metadata?.right_options || []).map((r: any) => (
-                                <p key={r.key} className="leading-snug">
-                                  <span className="font-bold text-slate-700 mr-1">{r.key}.</span>
-                                  <MathContent content={r.text} isInline={true} />
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
                         {/* Matching Dropdowns */}
                         <div className="space-y-2 text-xs">
                           <p className="font-bold text-slate-500">Kết nối các cặp vế tương ứng:</p>
