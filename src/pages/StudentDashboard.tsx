@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   BookOpen, Clock, Award, History, LogOut, CheckCircle2, 
   XCircle, ChevronRight, Calendar, Search, 
-  HelpCircle, Eye, AlertCircle, Sparkles, Trophy, X, Loader2, Key
+  HelpCircle, Eye, AlertCircle, Sparkles, Trophy, X, Loader2, Key, Calculator
 } from 'lucide-react';
 
 interface MathContentProps {
@@ -486,6 +486,13 @@ export default function StudentDashboard() {
               <p className="text-xs font-bold text-slate-800 leading-none">{profile?.full_name || user?.email}</p>
               <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-semibold">Học sinh</p>
             </div>
+            <button
+              onClick={() => navigate('/score-converter')}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:bg-violet-50 text-slate-600 hover:text-violet-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Quy đổi điểm</span>
+            </button>
             <button
               onClick={() => {
                 setPwError(null);

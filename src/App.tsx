@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import StudentDashboard from './pages/StudentDashboard';
 import ExamTaker from './pages/ExamTaker';
+import ScoreConverter from './pages/ScoreConverter';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -101,6 +102,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<StudentDashboard />} />
             <Route path="/exam/:examId" element={<ExamTaker />} />
+            <Route path="/score-converter" element={<ScoreConverter />} />
           </Route>
 
           {/* Catch-all Fallback */}

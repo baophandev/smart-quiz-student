@@ -275,7 +275,7 @@ export default function ResetPassword() {
 
         {/* Footer Link */}
         <p className="text-center mt-6 text-xs text-slate-500">
-          Smart Quiz App &copy; {new Date().getFullYear()}
+          v2.0.2 Smart Quiz App &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>
